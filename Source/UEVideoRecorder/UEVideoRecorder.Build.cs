@@ -7,6 +7,7 @@ namespace UnrealBuildTool.Rules
 		public UEVideoRecorder(TargetInfo Target)
 		{
 			bEnableExceptions = true;
+			UEBuildConfiguration.bUseLoggingInShipping = true;
 
 			PublicIncludePaths.AddRange(
 				new string[] {
