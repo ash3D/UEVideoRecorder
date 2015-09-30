@@ -1,4 +1,4 @@
 #include "UEVideoRecorderPrivatePCH.h"
 #include "ModuleManager.h"
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, UEVideoRecorderPlugin)
+IMPLEMENT_MODULE(FDefaultModuleImpl, UEVideoRecorder)
