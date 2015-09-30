@@ -2,7 +2,7 @@
 	"FileVersion" : 3,
 	"Version" : 0.1,
 	"VersionName" : "0.1",
-	"FriendlyName" : "Video Recorder Plugin",
+	"FriendlyName" : "Video Recorder",
 	"CreatedBy" : "ash",
 	"CreatedByURL" : "https://github.com/ash3D",
 	"Description" : "Implements gameplay video recording and screenshots.",
