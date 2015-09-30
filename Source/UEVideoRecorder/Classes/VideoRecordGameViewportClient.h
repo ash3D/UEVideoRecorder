@@ -47,7 +47,7 @@ struct LogRedirectProxy : private LogRedirect
 /**
 *
 */
-UCLASS()
+UCLASS(meta = (ShortTooltip = "Captures frames for video recording and screenshots. Activated via selection it in \"Project Settings -> General Setting -> Game Viewport Client Class\"."))
 class UVideoRecordGameViewportClient :
 	public UGameViewportClient,
 	public/*private*/ LogRedirectProxy<std::wcerr, ELogVerbosity::Error>,
