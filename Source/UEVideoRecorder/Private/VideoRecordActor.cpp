@@ -15,26 +15,38 @@ void AVideoRecordActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	viewport = *TObjectIterator<UVideoRecordGameViewportClient>();
-	assert(viewport);
+	if (const auto viewportIterator = TObjectIterator<UVideoRecordGameViewportClient>())
+	{
+		viewport = *viewportIterator;
+		assert(viewport);
+	}
+	else
+		UE_LOG(VideoRecorder, Error, TEXT("VideoRecordGameViewportClient is not registered. Any record operations will be ignored. Set VideoRecordGameViewportClient in \"Project Settings -> General Setting -> Game Viewport Client Class\" in order to enable video record and screenshot functionality."));
+}
+
+template<class ViewportClient, typename ...Args, typename ...Params>
+inline void AVideoRecordActor::ViewportProxy(void (ViewportClient::*f)(Args ...args), Params ...params)
+{
+	if (viewport)
+		(viewport->*f)(std::forward<Params>(params)...);
 }
 
 void AVideoRecordActor::CaptureGUI(bool enable)
 {
-	viewport->CaptureGUI(enable);
+	ViewportProxy(&UVideoRecordGameViewportClient::CaptureGUI, enable);
 }
 
 void AVideoRecordActor::StartRecord(const FString &filename)
 {
-	viewport->StartRecord(*filename);
+	ViewportProxy((void (UVideoRecordGameViewportClient::*)(decltype(*filename)))&UVideoRecordGameViewportClient::StartRecord, *filename);
 }
 
 void AVideoRecordActor::StopRecord()
 {
-	viewport->StopRecord();
+	ViewportProxy(&UVideoRecordGameViewportClient::StopRecord);
 }
 
 void AVideoRecordActor::Screenshot(const FString &filename)
 {
-	viewport->Screenshot(*filename);
+	ViewportProxy(&UVideoRecordGameViewportClient::Screenshot, *filename);
 }

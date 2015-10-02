@@ -27,4 +27,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Screenshot")
 	void Screenshot(const FString &filename);
+
+private:
+	// use ViewportClient template param instead of explicit UVideoRecordGameViewportClient in order to allow using forward decl for UVideoRecordGameViewportClient in header
+	template<class ViewportClient, typename ...Args, typename ...Params>
+	inline void ViewportProxy(void (ViewportClient::*f)(Args ...), Params ...);
 };
