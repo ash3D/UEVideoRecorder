@@ -163,7 +163,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 
 	Draw(frameSize.X, frameSize.Y, [=](std::decay_t<FunctionTraits<decltype(&CVideoRecorder::Draw)>::arg<3>>::argument_type data)
 	{
-#if 0
+#if 1
 		if (captureGUI)
 			memcpy(data, frame.GetData(), frame.Num() * frame.GetTypeSize());
 		else
