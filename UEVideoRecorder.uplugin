@@ -1,7 +1,7 @@
 {
-	"FileVersion" : 3,
+	"FileVersion" : 4,
 	"Version" : 3,
-	"VersionName" : "0.4",
+	"VersionName" : "0.5",
 	"FriendlyName" : "Video Recorder",
 	"CreatedBy" : "ash",
 	"CreatedByURL" : "https://github.com/ash3D",
