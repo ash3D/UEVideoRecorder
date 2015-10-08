@@ -182,5 +182,10 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 
 void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
 {
-	StartRecord(Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y, filename);
+	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y);
+}
+
+void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf)
+{
+	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y, performance, crf);
 }

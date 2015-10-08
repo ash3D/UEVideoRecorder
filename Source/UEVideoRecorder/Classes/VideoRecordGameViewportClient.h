@@ -61,6 +61,7 @@ class UVideoRecordGameViewportClient :
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
 	void StartRecord(const wchar_t filename[]);
+	void StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf);
 
 private:
 	using CVideoRecorder::Draw;
