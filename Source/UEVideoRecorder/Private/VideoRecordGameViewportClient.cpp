@@ -157,7 +157,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 	}
 	if (captureGUI != this->captureGUI && !failGUI)
 	{
-		std::wcerr << "Fail to capture frame with GUI. Performing capture without GUI." << std::endl;	// data race on std::wcerr possible
+		UE_LOG(VideoRecorder, Error, TEXT("Fail to capture frame with GUI. Performing capture without GUI."));
 		failGUI = true;
 	}
 
