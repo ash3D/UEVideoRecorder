@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <wrl.h>
 
+#pragma region Traits
 template<typename Signature>
 struct FunctionTraits;
 
@@ -60,7 +61,9 @@ DECL_MEMBER_FUNCTION_TRAITS(const volatile)
 	};
 
 #define HAS_FUNCTION(Class, Function) HasFunction_##Function<Class>::value
+#pragma endregion
 
+#pragma region Logger
 	DECL_HAS_FUNCTION(Logf)
 	DECL_HAS_FUNCTION(Logf_Internal)
 
@@ -107,7 +110,9 @@ struct Logger
 
 DECL_LOGGER(Logf, true)
 DECL_LOGGER(Logf_Internal, !HAS_FUNCTION(FMsg, Logf))
+#pragma endregion
 
+#pragma region LogRedirect
 std::streamsize LogRedirect::LogSink::write(const wchar_t msg[], std::streamsize count)
 {
 	msgStr.assign(msg, count);
@@ -137,13 +142,11 @@ LogRedirect::~LogRedirect()
 {
 	src.rdbuf(oldbuff);
 }
+#pragma endregion
 
-void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)
+bool UVideoRecordGameViewportClient::TryCaptureGUI(TArray<FColor> &frame, FIntPoint &frameSize)
 {
-	Super::Draw(viewport, sceneCanvas);
-
 	bool captureGUI = this->captureGUI;
-	auto frameSize = Viewport->GetSizeXY();
 	if (captureGUI && FSlateApplication::IsInitialized())
 	{
 		const TSharedPtr<SWindow> windowPtr = GetWindow();
@@ -160,10 +163,49 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 		UE_LOG(VideoRecorder, Error, TEXT("Fail to capture frame with GUI. Performing capture without GUI."));
 		failGUI = true;
 	}
+	return captureGUI;
+}
 
+#if !LEGACY && !ASYNC
+class UVideoRecordGameViewportClient::CFrame : public CVideoRecorder::CFrame
+{
+	UVideoRecordGameViewportClient &parent;
+	TArray<FColor> frame;
+	FIntPoint frameSize;
+
+private:
+	TFrameData GetFrameData() const override;
+
+public:
+	CFrame(CVideoRecorder::CFrame::TOpaque opaque, UVideoRecordGameViewportClient &parent);
+};
+
+UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::TOpaque opaque, UVideoRecordGameViewportClient &parent) :
+CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque)),
+parent(parent), frameSize(parent.Viewport->GetSizeXY())
+{
+	if (!parent.TryCaptureGUI(frame, frameSize))
+	{
+		const auto ok = parent.Viewport->ReadPixels(frame, FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
+		assert(ok);
+	}
+}
+
+auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> TFrameData
+{
+	return{ frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
+}
+#endif
+
+void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)
+{
+	Super::Draw(viewport, sceneCanvas);
+
+#if LEGACY
+	FIntPoint frameSize = Viewport->GetSizeXY();
+	const bool captureGUI = TryCaptureGUI(frame, frameSize);
 	Draw(frameSize.X, frameSize.Y, [=](std::decay_t<FunctionTraits<decltype(&CVideoRecorder::Draw)>::arg<3>>::argument_type data)
 	{
-#if 1
 		if (captureGUI)
 			memcpy(data, frame.GetData(), frame.Num() * frame.GetTypeSize());
 		else
@@ -171,13 +213,20 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 			const auto ok = Viewport->ReadPixelsPtr(reinterpret_cast<FColor *>(data), FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
 			assert(ok);
 		}
+	});
 #else
+	Sample([this](CVideoRecorder::CFrame::TOpaque opaque)
+	{
+#if ASYNC
 		using Microsoft::WRL::ComPtr;
 		const auto texture = reinterpret_cast<ID3D11Texture2D *>(Viewport->GetRenderTargetTexture()->GetNativeResource());
 		ComPtr<ID3D11Device> device;
 		texture->GetDevice(&device);
+#else
+		EnqueueFrame(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), *this));
 #endif
 	});
+#endif
 }
 
 void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
