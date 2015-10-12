@@ -1,4 +1,5 @@
 #include "UEVideoRecorderPrivatePCH.h"
+#include "VideoRecordGameViewportClient.h"
 #include <d3d11.h>
 #include <wrl.h>
 

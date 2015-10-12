@@ -26,6 +26,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"Engine",
+					"VideoRecorder",
 					"boost",
 					// ... add other public dependencies that you statically link with here ...
 				}
@@ -34,7 +35,6 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"VideoRecorder",
 					"CoreUObject",
 					"Slate",
 					"SlateCore",

@@ -1,5 +1,6 @@
 #include "UEVideoRecorderPrivatePCH.h"
 #include "VideoRecordActor.h"
+#include "VideoRecordGameViewportClient.h"
 
 
 // Sets default values
