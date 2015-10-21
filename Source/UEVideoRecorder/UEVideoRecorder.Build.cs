@@ -36,6 +36,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"CoreUObject",
+                    "RenderCore",
 					"Slate",
 					"SlateCore",
 					// ... add private dependencies that you statically link with here ...

@@ -55,5 +55,5 @@ void AVideoRecordActor::StopRecord()
 
 void AVideoRecordActor::Screenshot(const FString &filename)
 {
-	ViewportProxy(&UVideoRecordGameViewportClient::Screenshot, *filename);
+	ViewportProxy((void (UVideoRecordGameViewportClient::*)(const wchar_t *const&))&UVideoRecordGameViewportClient::Screenshot, *filename);
 }

@@ -1,7 +1,9 @@
 #include "UEVideoRecorderPrivatePCH.h"
 #include "VideoRecordGameViewportClient.h"
-#include <d3d11.h>
-#include <wrl.h>
+
+#if defined _MSC_VER && _MSC_VER < 1900
+#define noexcept
+#endif
 
 #pragma region Traits
 template<typename Signature>
@@ -167,8 +169,193 @@ bool UVideoRecordGameViewportClient::TryCaptureGUI(TArray<FColor> &frame, FIntPo
 	return captureGUI;
 }
 
-#if !LEGACY && !ASYNC
-class UVideoRecordGameViewportClient::CFrame : public CVideoRecorder::CFrame
+#if !LEGACY
+#if ASYNC
+
+using Microsoft::WRL::ComPtr;
+
+/*
+	Due to bug in VS 2013 it inaccessible via '::' if place it in anonimous namespace
+	TODO: move it in anonimous namespace after migration to VS 2015
+*/
+static inline bool Unused(IUnknown *object)
+{
+	object->AddRef();
+	return object->Release() == 1;
+}
+
+namespace
+{
+	const/*expr*/ auto textureFormat = DXGI_FORMAT_B8G8R8A8_TYPELESS;
+
+	inline void AssertHR(HRESULT hr)
+	{
+		assert(SUCCEDED(hr));
+	}
+
+	inline void CheckHR(HRESULT hr)
+	{
+		if (FAILED(hr))
+			throw hr;
+	}
+
+	/*
+		Texture pool currently global for all game viewport clients.
+		It is necessary to make sure that it is safe to use multiple game viewport clients with single pool (including thread safaty) before doing it.
+	*/
+	class CTexturePool
+	{
+		struct TTexture
+		{
+			ComPtr<ID3D11Texture2D> texture;
+			unsigned long int idleTime;
+
+		public:
+			TTexture(ComPtr<ID3D11Texture2D> &&texture) : texture(std::move(texture)), idleTime() {}
+		};
+		std::forward_list<TTexture> pool;	// consider using std::vector instead
+		static const/*expr*/ unsigned long int maxIdle = 10u;
+
+	private:
+		static inline bool Unused(decltype(pool)::const_reference texture);
+
+	public:
+		ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, unsigned int width, unsigned int height);
+		void NextFrame();
+	} texturePool;
+
+	// propably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
+	inline bool CTexturePool::Unused(decltype(pool)::const_reference texture)
+	{
+		return ::Unused(texture.texture.Get());
+	}
+
+#define SEARCH_SMALLEST 1
+	ComPtr<ID3D11Texture2D> CTexturePool::GetTexture(ID3D11Device *device, unsigned int width, unsigned int height)
+	{
+#if SEARCH_SMALLEST
+		const auto cached = std::min_element(pool.begin(), pool.end(), [](decltype(pool)::const_reference left, decltype(pool)::const_reference right)
+		{
+			const bool leftUnused = Unused(left), rightUnused = Unused(right);
+			if (leftUnused != rightUnused)
+				return leftUnused;
+
+			D3D11_TEXTURE2D_DESC leftDesc, rightDesc;
+			left.texture->GetDesc(&leftDesc);
+			right.texture->GetDesc(&rightDesc);
+			return leftDesc.Width * leftDesc.Height < rightDesc.Width * rightDesc.Height;
+		});
+#else
+		const auto cached = std::find_if(pool.begin(), pool.end(), Unused);
+#endif
+
+#if SEARCH_SMALLEST
+		if (cached != pool.end() && Unused(*cached))
+#else
+		if (cached != pool.end())
+#endif
+		{
+			cached->idleTime = 0;
+			return cached->texture;
+		}
+
+		ComPtr<ID3D11Texture2D> texture;
+		CheckHR(device->CreateTexture2D(&CD3D11_TEXTURE2D_DESC(textureFormat, width, height, 1, 0, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ), NULL, &texture));
+		pool.emplace_front(std::move(texture));
+		return pool.front().texture;
+	}
+#undef SEARCH_SMALLEST
+
+	void CTexturePool::NextFrame()
+	{
+		pool.remove_if([](decltype(pool)::reference texture)
+		{
+			return Unused(texture) && ++texture.idleTime > maxIdle;
+		});
+	}
+}
+
+class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
+{
+	ComPtr<ID3D11Texture2D> stagingTexture;
+	TFrameData frameData;
+
+private:
+	TFrameData GetFrameData() const override { return frameData; }
+
+private:
+	ComPtr<ID3D11DeviceContext> GetContext() const;
+
+public:
+	CFrame(CVideoRecorder::CFrame::TOpaque opaque, ID3D11Device *device, unsigned int width, unsigned int height);
+	~CFrame() override;
+
+public:
+	void operator =(ID3D11Texture2D *src);
+	bool TryMap();
+};
+
+ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame::GetContext() const
+{
+	ComPtr<ID3D11Device> device;
+	ComPtr<ID3D11DeviceContext> context;
+	stagingTexture->GetDevice(&device);
+	device->GetImmediateContext(&context);
+	return context;
+}
+
+UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::TOpaque opaque, ID3D11Device *device, unsigned int width, unsigned int height) :
+CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque)),
+stagingTexture(texturePool.GetTexture(device, width, height)),
+frameData()
+{
+	frameData.width = width;
+	frameData.height = height;
+}
+
+UVideoRecordGameViewportClient::CFrame::~CFrame()
+{
+	if (frameData.pixels)
+	{
+		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
+			UnmapCommand,
+			const ComPtr<ID3D11Texture2D>, texture, stagingTexture,
+			{
+				ComPtr<ID3D11Device> device;
+				ComPtr<ID3D11DeviceContext> context;
+				texture->GetDevice(&device);
+				device->GetImmediateContext(&context);
+				context->Unmap(texture.Get(), 0);
+			});
+	}
+}
+
+void UVideoRecordGameViewportClient::CFrame::operator =(ID3D11Texture2D *src)
+{
+	D3D11_TEXTURE2D_DESC desc;
+	src->GetDesc(&desc);
+	const CD3D11_BOX box(0, 0, 0, desc.Width, desc.Height, 1);
+	GetContext()->CopySubresourceRegion(stagingTexture.Get(), 0, 0, 0, 0, src, 0, &box);
+}
+
+bool UVideoRecordGameViewportClient::CFrame::TryMap()
+{
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	switch (const HRESULT hr = GetContext()->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped))
+	{
+	case S_OK:
+		frameData.stride = mapped.RowPitch;
+		frameData.pixels = mapped.pData;
+		Ready();
+		return true;
+	case DXGI_ERROR_WAS_STILL_DRAWING:
+		return false;
+	default:
+		throw hr;
+	}
+}
+#else
+class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
 	UVideoRecordGameViewportClient &parent;
 	TArray<FColor> frame;
@@ -197,6 +384,7 @@ auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> TFrameData
 	return{ frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
 #endif
+#endif
 
 void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)
 {
@@ -216,17 +404,105 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 		}
 	});
 #else
-	Sample([this](CVideoRecorder::CFrame::TOpaque opaque)
-	{
 #if ASYNC
-		using Microsoft::WRL::ComPtr;
-		const auto texture = reinterpret_cast<ID3D11Texture2D *>(Viewport->GetRenderTargetTexture()->GetNativeResource());
-		ComPtr<ID3D11Device> device;
-		texture->GetDevice(&device);
+	try
+	{
+		// std::queue::empty() provides no-throw guarantee for standard container types => it is safe to use lock directly for mutex rather than lock guard
+		mtx.lock();
+		const bool pendingFrames = !frameQueue.empty();
+		mtx.unlock();
+		if (pendingFrames)
+		{
+			ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
+				TryMapCommand,
+				UVideoRecordGameViewportClient &, viewportClient, *this,
+				{
+					try
+					{
+						for (std::unique_lock<decltype(viewportClient.mtx)> lck(viewportClient.mtx); !viewportClient.frameQueue.empty(); lck.lock(), viewportClient.frameQueue.pop_front())
+						{
+							const auto frame = viewportClient.frameQueue.front();
+							lck.unlock();
+							if (!frame->TryMap())
+								break;
+						}
+					}
+					catch (HRESULT hr)
+					{
+						viewportClient.Error(hr);
+					}
+					catch (const std::exception &error)
+					{
+						viewportClient.Error(error);
+					}
+				});
+		}
+
+		SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
+		{
+			ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(Viewport->GetRenderTargetTexture()->GetNativeResource());
+			assert(rt);
+
+			ComPtr<ID3D11Device> device;
+			rt->GetDevice(&device);
+
+			ComPtr<ID3D11DeviceContext> context;
+			device->GetImmediateContext(&context);
+
+			D3D11_TEXTURE2D_DESC desc;
+			rt->GetDesc(&desc);
+
+#if 1
+			auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height);
+			{
+				std::lock_guard<decltype(mtx)> lck(mtx);
+				frameQueue.push_back(frame);
+			}
 #else
-		EnqueueFrame(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), *this));
+			std::unique_lock<decltype(mtx)> lck(mtx, std::defer_lock);
+			frameQueue.push([&]
+			{
+				auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height);
+				lck.lock();
+				return frame;
+			}());
+			auto frame = frameQueue.back();
+			lck.unlock();
 #endif
+
+			/*
+				It is possible to pass 'CFrame &' or 'CFrame *' instead of shared_ptr in normal situation because 'frameQueue' will hold reference to it.
+				But in case of exception 'frameQueue' can be cleaned.
+			*/
+			ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+				CopyCommand,
+				const ComPtr<ID3D11Texture2D>, src, rt,
+				decltype(frameQueue)::value_type, dst, frame,
+				{
+					*dst = src.Get();
+				});
+
+			return frame;
+		});
+
+		texturePool.NextFrame();
+	}
+	catch (HRESULT hr)
+	{
+		Error(hr);
+	}
+	catch (const std::exception &error)
+	{
+		Error(error);
+	}
+#else
+	SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
+	{
+		auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), *this);
+		frame->Ready();
+		return frame;
 	});
+#endif
 #endif
 }
 
@@ -239,3 +515,54 @@ void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], Encod
 {
 	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y, performance, crf);
 }
+
+#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
+#define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
+
+namespace
+{
+	template<typename Char = char>
+	inline typename std::enable_if<std::is_same<Char, TCHAR>::value, const Char *>::type Str_char_2_TCHAR(const char *str)
+	{
+		return str;
+	}
+
+	template<typename Char>
+	class c_str
+	{
+		std::basic_string<Char> str;
+
+	public:
+		c_str(decltype(str) &&str) noexcept : str(std::move(str)) {}
+		operator const Char *() const noexcept { return str.c_str(); }
+	};
+
+	template<typename Char = char>
+	typename std::enable_if<!std::is_same<Char, TCHAR>::value, c_str<TCHAR>>::type Str_char_2_TCHAR(const char *str)
+	{
+		std::wstring_convert<std::codecvt_utf8_utf16<TCHAR>> converter;
+		return converter.from_bytes(str);
+	}
+}
+
+#if ASYNC
+void UVideoRecordGameViewportClient::Error()
+{
+	std::lock_guard<decltype(mtx)> lck(mtx);
+	StopRecord();
+	std::for_each(frameQueue.cbegin(), frameQueue.cend(), std::mem_fn(&CFrame::Cancel));
+	frameQueue.clear();
+}
+
+void UVideoRecordGameViewportClient::Error(HRESULT hr)
+{
+	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("hr=%d") ERROR_MSG_PREFIX, hr);
+	Error();
+}
+
+void UVideoRecordGameViewportClient::Error(const std::exception &error)
+{
+	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("%s") ERROR_MSG_PREFIX, (const TCHAR *)Str_char_2_TCHAR(error.what()));
+	Error();
+}
+#endif

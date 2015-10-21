@@ -3,13 +3,20 @@
 #include "VideoRecordGameViewportClient.generated.h"
 
 #define LEGACY	0
-#define ASYNC	0
+#define ASYNC	1
 
 #if LEGACY && ASYNC
 #error ASYNC incompatible with LEGACY
 #endif
 
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
+
+#if ASYNC
+namespace std
+{
+	class excetption;
+}
+#endif
 
 DECLARE_LOG_CATEGORY_EXTERN(VideoRecorder, Log, All);
 
@@ -63,12 +70,16 @@ public:
 	void StartRecord(const wchar_t filename[]);
 	void StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf);
 
+#if ASYNC
+private:
+	void Error(), Error(HRESULT hr), Error(const std::exception &error);
+#endif
+
 private:
 #if LEGACY
 	using CVideoRecorder::Draw;
 #else
-	using CVideoRecorder::Sample;
-	using CVideoRecorder::EnqueueFrame;
+	using CVideoRecorder::SampleFrame;
 #endif
 	using CVideoRecorder::StartRecord;
 
@@ -77,6 +88,10 @@ private:
 	TArray<FColor> frame;
 #else
 	class CFrame;
+#if ASYNC
+	std::deque<std::shared_ptr<CFrame>> frameQueue;
+	std::recursive_mutex mtx;	// recursive required for exception handling
+#endif
 #endif
 	bool captureGUI = false, failGUI = false, TryCaptureGUI(TArray<FColor> &frame, FIntPoint &frameSize);
 };
