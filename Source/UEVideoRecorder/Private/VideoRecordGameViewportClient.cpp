@@ -275,6 +275,7 @@ namespace
 	}
 }
 
+#pragma region CFrame
 class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
 	ComPtr<ID3D11Texture2D> stagingTexture;
@@ -354,6 +355,36 @@ bool UVideoRecordGameViewportClient::CFrame::TryMap()
 		throw hr;
 	}
 }
+#pragma endregion
+
+#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
+#define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
+
+namespace
+{
+	template<typename Char = char>
+	inline typename std::enable_if<std::is_same<Char, TCHAR>::value, const Char *>::type Str_char_2_TCHAR(const char *str)
+	{
+		return str;
+	}
+
+	template<typename Char>
+	class c_str
+	{
+		std::basic_string<Char> str;
+
+	public:
+		c_str(decltype(str) &&str) noexcept : str(std::move(str)) {}
+		operator const Char *() const noexcept { return str.c_str(); }
+	};
+
+	template<typename Char = char>
+	typename std::enable_if<!std::is_same<Char, TCHAR>::value, c_str<TCHAR>>::type Str_char_2_TCHAR(const char *str)
+	{
+		std::wstring_convert<std::codecvt_utf8_utf16<TCHAR>> converter;
+		return converter.from_bytes(str);
+	}
+}
 #else
 class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
@@ -405,96 +436,53 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 	});
 #else
 #if ASYNC
-	try
-	{
-		// std::queue::empty() provides no-throw guarantee for standard container types => it is safe to use lock directly for mutex rather than lock guard
-		mtx.lock();
-		const bool pendingFrames = !frameQueue.empty();
-		mtx.unlock();
-		if (pendingFrames)
+	ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
+		ProcessVideoRecordingCommand,
+		UVideoRecordGameViewportClient &, viewportClient, *this,
 		{
-			ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
-				TryMapCommand,
-				UVideoRecordGameViewportClient &, viewportClient, *this,
-				{
-					try
-					{
-						for (std::unique_lock<decltype(viewportClient.mtx)> lck(viewportClient.mtx); !viewportClient.frameQueue.empty(); lck.lock(), viewportClient.frameQueue.pop_front())
-						{
-							const auto frame = viewportClient.frameQueue.front();
-							lck.unlock();
-							if (!frame->TryMap())
-								break;
-						}
-					}
-					catch (HRESULT hr)
-					{
-						viewportClient.Error(hr);
-					}
-					catch (const std::exception &error)
-					{
-						viewportClient.Error(error);
-					}
-				});
-		}
-
-		SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
-		{
-			ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(Viewport->GetRenderTargetTexture()->GetNativeResource());
-			assert(rt);
-
-			ComPtr<ID3D11Device> device;
-			rt->GetDevice(&device);
-
-			ComPtr<ID3D11DeviceContext> context;
-			device->GetImmediateContext(&context);
-
-			D3D11_TEXTURE2D_DESC desc;
-			rt->GetDesc(&desc);
-
-#if 1
-			auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height);
+			try
 			{
-				std::lock_guard<decltype(mtx)> lck(mtx);
-				frameQueue.push_back(frame);
+				// try map ready frames
+				while (!viewportClient.frameQueue.empty())
+				{
+					if (!viewportClient.frameQueue.front()->TryMap())
+						break;
+					viewportClient.frameQueue.pop_front();
+				}
+
+				viewportClient.SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
+				{
+					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
+					assert(rt);
+
+					ComPtr<ID3D11Device> device;
+					rt->GetDevice(&device);
+
+					ComPtr<ID3D11DeviceContext> context;
+					device->GetImmediateContext(&context);
+
+					D3D11_TEXTURE2D_DESC desc;
+					rt->GetDesc(&desc);
+
+					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height));
+					*viewportClient.frameQueue.back() = rt;
+
+					return viewportClient.frameQueue.back();
+				});
+
+				texturePool.NextFrame();
 			}
-#else
-			std::unique_lock<decltype(mtx)> lck(mtx, std::defer_lock);
-			frameQueue.push([&]
+			catch (HRESULT hr)
 			{
-				auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height);
-				lck.lock();
-				return frame;
-			}());
-			auto frame = frameQueue.back();
-			lck.unlock();
-#endif
-
-			/*
-				It is possible to pass 'CFrame &' or 'CFrame *' instead of shared_ptr in normal situation because 'frameQueue' will hold reference to it.
-				But in case of exception 'frameQueue' can be cleaned.
-			*/
-			ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
-				CopyCommand,
-				const ComPtr<ID3D11Texture2D>, src, rt,
-				decltype(frameQueue)::value_type, dst, frame,
-				{
-					*dst = src.Get();
-				});
-
-			return frame;
+				UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("hr=%d") ERROR_MSG_POSTFIX, hr);
+				viewportClient.Error();
+			}
+			catch (const std::exception &error)
+			{
+				UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("%s") ERROR_MSG_POSTFIX, (const TCHAR *)Str_char_2_TCHAR(error.what()));
+				viewportClient.Error();
+			}
 		});
-
-		texturePool.NextFrame();
-	}
-	catch (HRESULT hr)
-	{
-		Error(hr);
-	}
-	catch (const std::exception &error)
-	{
-		Error(error);
-	}
 #else
 	SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
 	{
@@ -506,6 +494,52 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 #endif
 }
 
+#if ASYNC
+void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+		StartRecordCommand,
+		UVideoRecordGameViewportClient &, viewportClient, *this,
+		std::wstring, filename, filename,
+		{
+			viewportClient.StartRecord(std::move(filename), viewportClient.Viewport->GetSizeXY().X, viewportClient.Viewport->GetSizeXY().Y);
+		});
+}
+
+void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf)
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_FOURPARAMETER(
+		StartRecordCommand,
+		UVideoRecordGameViewportClient &, viewportClient, *this,
+		std::wstring, filename, filename,
+		EncodePerformance, performance, performance,
+		int64_t, crf, crf,
+		{
+			viewportClient.StartRecord(std::move(filename), viewportClient.Viewport->GetSizeXY().X, viewportClient.Viewport->GetSizeXY().Y, performance, crf);
+		});
+}
+
+void UVideoRecordGameViewportClient::StopRecord()
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
+		StopRecordCommand,
+		UVideoRecordGameViewportClient &, viewportClient, *this,
+		{
+			viewportClient.CVideoRecorder::StopRecord();
+		});
+}
+
+void UVideoRecordGameViewportClient::Screenshot(const wchar_t filename[])
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+		ScreenshotCommand,
+		UVideoRecordGameViewportClient &, viewportClient, *this,
+		std::wstring, filename, filename,
+		{
+			viewportClient.Screenshot(std::move(filename));
+		});
+}
+#else
 void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
 {
 	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y);
@@ -515,54 +549,13 @@ void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], Encod
 {
 	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y, performance, crf);
 }
-
-#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
-#define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
-
-namespace
-{
-	template<typename Char = char>
-	inline typename std::enable_if<std::is_same<Char, TCHAR>::value, const Char *>::type Str_char_2_TCHAR(const char *str)
-	{
-		return str;
-	}
-
-	template<typename Char>
-	class c_str
-	{
-		std::basic_string<Char> str;
-
-	public:
-		c_str(decltype(str) &&str) noexcept : str(std::move(str)) {}
-		operator const Char *() const noexcept { return str.c_str(); }
-	};
-
-	template<typename Char = char>
-	typename std::enable_if<!std::is_same<Char, TCHAR>::value, c_str<TCHAR>>::type Str_char_2_TCHAR(const char *str)
-	{
-		std::wstring_convert<std::codecvt_utf8_utf16<TCHAR>> converter;
-		return converter.from_bytes(str);
-	}
-}
+#endif
 
 #if ASYNC
 void UVideoRecordGameViewportClient::Error()
 {
-	std::lock_guard<decltype(mtx)> lck(mtx);
 	StopRecord();
 	std::for_each(frameQueue.cbegin(), frameQueue.cend(), std::mem_fn(&CFrame::Cancel));
 	frameQueue.clear();
-}
-
-void UVideoRecordGameViewportClient::Error(HRESULT hr)
-{
-	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("hr=%d") ERROR_MSG_PREFIX, hr);
-	Error();
-}
-
-void UVideoRecordGameViewportClient::Error(const std::exception &error)
-{
-	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("%s") ERROR_MSG_PREFIX, (const TCHAR *)Str_char_2_TCHAR(error.what()));
-	Error();
 }
 #endif

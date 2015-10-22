@@ -7,7 +7,6 @@
 #include <iostream>
 #include <string>
 #include <mutex>
-#include <winerror.h>	// for HRESULT
 #include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream_buffer.hpp"
 #include "VideoRecorder.h"

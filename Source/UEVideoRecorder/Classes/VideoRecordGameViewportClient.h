@@ -11,13 +11,6 @@
 
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
 
-#if ASYNC
-namespace std
-{
-	class excetption;
-}
-#endif
-
 DECLARE_LOG_CATEGORY_EXTERN(VideoRecorder, Log, All);
 
 namespace bios = boost::iostreams;
@@ -69,10 +62,16 @@ public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
 	void StartRecord(const wchar_t filename[]);
 	void StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf);
+#if ASYNC
+	void StopRecord();
+	void Screenshot(const wchar_t filename[]);
+#else
+	void Screenshot(const wchar_t filename[]) { CVideoRecorder::Screenshot(filename); }
+#endif
 
 #if ASYNC
 private:
-	void Error(), Error(HRESULT hr), Error(const std::exception &error);
+	void Error();
 #endif
 
 private:
@@ -82,6 +81,10 @@ private:
 	using CVideoRecorder::SampleFrame;
 #endif
 	using CVideoRecorder::StartRecord;
+#if ASYNC
+	using CVideoRecorder::StopRecord;
+	using CVideoRecorder::Screenshot;
+#endif
 
 private:
 #if LEGACY
@@ -90,7 +93,6 @@ private:
 	class CFrame;
 #if ASYNC
 	std::deque<std::shared_ptr<CFrame>> frameQueue;
-	std::recursive_mutex mtx;	// recursive required for exception handling
 #endif
 #endif
 	bool captureGUI = false, failGUI = false, TryCaptureGUI(TArray<FColor> &frame, FIntPoint &frameSize);
