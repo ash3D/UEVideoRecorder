@@ -288,7 +288,7 @@ private:
 	ComPtr<ID3D11DeviceContext> GetContext() const;
 
 public:
-	CFrame(CVideoRecorder::CFrame::TOpaque opaque, ID3D11Device *device, unsigned int width, unsigned int height);
+	CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, unsigned int width, unsigned int height);
 	~CFrame() override;
 
 public:
@@ -305,8 +305,8 @@ ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame::GetContext()
 	return context;
 }
 
-UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::TOpaque opaque, ID3D11Device *device, unsigned int width, unsigned int height) :
-CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque)),
+UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, unsigned int width, unsigned int height) :
+CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::Opaque>(opaque)),
 stagingTexture(texturePool.GetTexture(device, width, height)),
 frameData()
 {
@@ -396,11 +396,11 @@ private:
 	TFrameData GetFrameData() const override;
 
 public:
-	CFrame(CVideoRecorder::CFrame::TOpaque opaque, UVideoRecordGameViewportClient &parent);
+	CFrame(CVideoRecorder::CFrame::Opaque opaque, UVideoRecordGameViewportClient &parent);
 };
 
-UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::TOpaque opaque, UVideoRecordGameViewportClient &parent) :
-CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque)),
+UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, UVideoRecordGameViewportClient &parent) :
+CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::Opaque>(opaque)),
 parent(parent), frameSize(parent.Viewport->GetSizeXY())
 {
 	if (!parent.TryCaptureGUI(frame, frameSize))
@@ -450,7 +450,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 					viewportClient.frameQueue.pop_front();
 				}
 
-				viewportClient.SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
+				viewportClient.SampleFrame([this](CVideoRecorder::CFrame::Opaque opaque)
 				{
 					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
 					assert(rt);
@@ -464,7 +464,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 					D3D11_TEXTURE2D_DESC desc;
 					rt->GetDesc(&desc);
 
-					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), device.Get(), desc.Width, desc.Height));
+					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), device.Get(), desc.Width, desc.Height));
 					*viewportClient.frameQueue.back() = rt;
 
 					return viewportClient.frameQueue.back();
@@ -484,9 +484,9 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 			}
 		});
 #else
-	SampleFrame([this](CVideoRecorder::CFrame::TOpaque opaque)
+	SampleFrame([this](CVideoRecorder::CFrame::Opaque opaque)
 	{
-		auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::TOpaque>(opaque), *this);
+		auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), *this);
 		frame->Ready();
 		return frame;
 	});
@@ -494,28 +494,29 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 #endif
 }
 
-#if ASYNC
-void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
+// 1 call site
+inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, const EncodeConfig &config)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
-		StartRecordCommand,
-		UVideoRecordGameViewportClient &, viewportClient, *this,
-		std::wstring, filename, filename,
-		{
-			viewportClient.StartRecord(std::move(filename), viewportClient.Viewport->GetSizeXY().X, viewportClient.Viewport->GetSizeXY().Y);
-		});
+	if (!(width && height))
+	{
+		width = Viewport->GetSizeXY().X;
+		height = Viewport->GetSizeXY().Y;
+	}
+	CVideoRecorder::StartRecord(std::move(filename), width, height, config);
 }
 
-void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf)
+#if ASYNC
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_FOURPARAMETER(
+	ENQUEUE_UNIQUE_RENDER_COMMAND_FIVEPARAMETER(
 		StartRecordCommand,
 		UVideoRecordGameViewportClient &, viewportClient, *this,
 		std::wstring, filename, filename,
-		EncodePerformance, performance, performance,
-		int64_t, crf, crf,
+		const unsigned int, width, width,
+		const unsigned int, height, height,
+		const EncodeConfig, config, config,
 		{
-			viewportClient.StartRecord(std::move(filename), viewportClient.Viewport->GetSizeXY().X, viewportClient.Viewport->GetSizeXY().Y, performance, crf);
+			viewportClient.StartRecordImpl(std::move(filename), width, height, config);
 		});
 }
 
@@ -529,32 +530,27 @@ void UVideoRecordGameViewportClient::StopRecord()
 		});
 }
 
-void UVideoRecordGameViewportClient::Screenshot(const wchar_t filename[])
+void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 {
 	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
 		ScreenshotCommand,
 		UVideoRecordGameViewportClient &, viewportClient, *this,
 		std::wstring, filename, filename,
 		{
-			viewportClient.Screenshot(std::move(filename));
+			viewportClient.CVideoRecorder::Screenshot(std::move(filename));
 		});
 }
 #else
-void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[])
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config)
 {
-	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y);
-}
-
-void UVideoRecordGameViewportClient::StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf)
-{
-	StartRecord(filename, Viewport->GetSizeXY().X, Viewport->GetSizeXY().Y, performance, crf);
+	StartRecordImpl(std::move(filename), width, height, config);
 }
 #endif
 
 #if ASYNC
 void UVideoRecordGameViewportClient::Error()
 {
-	StopRecord();
+	CVideoRecorder::StopRecord();
 	std::for_each(frameQueue.cbegin(), frameQueue.cend(), std::mem_fn(&CFrame::Cancel));
 	frameQueue.clear();
 }

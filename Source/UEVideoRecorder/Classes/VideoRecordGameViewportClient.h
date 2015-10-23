@@ -60,14 +60,14 @@ class UVideoRecordGameViewportClient :
 
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
-	void StartRecord(const wchar_t filename[]);
-	void StartRecord(const wchar_t filename[], EncodePerformance performance, int64_t crf);
+	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config = { -1 });
 #if ASYNC
 	void StopRecord();
-	void Screenshot(const wchar_t filename[]);
-#else
-	void Screenshot(const wchar_t filename[]) { CVideoRecorder::Screenshot(filename); }
+	void Screenshot(std::wstring filename);
 #endif
+
+private:
+	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, const EncodeConfig &config);
 
 #if ASYNC
 private:
@@ -82,6 +82,7 @@ private:
 #endif
 	using CVideoRecorder::StartRecord;
 #if ASYNC
+	// make private for ASYNC mode
 	using CVideoRecorder::StopRecord;
 	using CVideoRecorder::Screenshot;
 #endif

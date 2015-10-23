@@ -20,10 +20,7 @@ public:
 	void CaptureGUI(bool enable);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
-	void StartRecordDefault(const FString &filename);
-
-	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
-	void StartRecord(const FString &filename, int32 performance, int32 crf);
+	void StartRecord(const FString &filename, int32 width, int32 height, int32 crf, int32 performance);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StopRecord();
