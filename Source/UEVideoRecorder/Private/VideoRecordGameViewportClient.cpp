@@ -190,7 +190,7 @@ namespace
 
 	inline void AssertHR(HRESULT hr)
 	{
-		assert(SUCCEDED(hr));
+		assert(SUCCEEDED(hr));
 	}
 
 	inline void CheckHR(HRESULT hr)
@@ -442,7 +442,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 		{
 			try
 			{
-				// try map ready frames
+				// try to map ready frames
 				while (!viewportClient.frameQueue.empty())
 				{
 					if (!viewportClient.frameQueue.front()->TryMap())

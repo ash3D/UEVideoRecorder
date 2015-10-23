@@ -9,6 +9,14 @@ namespace UnrealBuildTool.Rules
 			bEnableExceptions = true;
 			UEBuildConfiguration.bUseLoggingInShipping = true;
 
+            switch (Target.Configuration)
+            {
+                case UnrealTargetConfiguration.Debug:
+                case UnrealTargetConfiguration.DebugGame:
+                    Definitions.Add("DEBUG");
+                    break;
+            }
+
 			PublicIncludePaths.AddRange(
 				new string[] {
 					// ... add public include paths required here ...
