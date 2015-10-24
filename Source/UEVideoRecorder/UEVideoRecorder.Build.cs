@@ -54,8 +54,6 @@ namespace UnrealBuildTool.Rules
 				{
 					"CoreUObject",
                     "RenderCore",
-					"Slate",
-					"SlateCore",
 					// ... add private dependencies that you statically link with here ...
 				}
 				);

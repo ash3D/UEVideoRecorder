@@ -88,13 +88,11 @@ private:
 #endif
 
 private:
-#if LEGACY
-	TArray<FColor> frame;
-#else
+#if !LEGACY
 	class CFrame;
 #if ASYNC
 	std::deque<std::shared_ptr<CFrame>> frameQueue;
 #endif
 #endif
-	bool captureGUI = false, failGUI = false, TryCaptureGUI(TArray<FColor> &frame, FIntPoint &frameSize);
+	bool captureGUI = false;
 };

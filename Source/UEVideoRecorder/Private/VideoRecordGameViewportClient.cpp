@@ -147,28 +147,6 @@ LogRedirect::~LogRedirect()
 }
 #pragma endregion
 
-bool UVideoRecordGameViewportClient::TryCaptureGUI(TArray<FColor> &frame, FIntPoint &frameSize)
-{
-	bool captureGUI = this->captureGUI;
-	if (captureGUI && FSlateApplication::IsInitialized())
-	{
-		const TSharedPtr<SWindow> windowPtr = GetWindow();
-		if (captureGUI = windowPtr.IsValid())
-		{
-			TSharedRef<SWidget> windowRef = windowPtr.ToSharedRef();
-			FIntVector size;
-			if (captureGUI = FSlateApplication::Get().TakeScreenshot(windowRef, frame, size))
-				frameSize.X = size.X, frameSize.Y = size.Y;
-		}
-	}
-	if (captureGUI != this->captureGUI && !failGUI)
-	{
-		UE_LOG(VideoRecorder, Error, TEXT("Fail to capture frame with GUI. Performing capture without GUI."));
-		failGUI = true;
-	}
-	return captureGUI;
-}
-
 #if !LEGACY
 #if ASYNC
 
@@ -297,7 +275,7 @@ private:
 	ComPtr<ID3D11DeviceContext> GetContext() const;
 
 public:
-	CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
+	CFrame(CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
 	~CFrame() override;
 
 public:
@@ -314,8 +292,8 @@ ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame::GetContext()
 	return context;
 }
 
-UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height) :
-CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::Opaque>(opaque)),
+UVideoRecordGameViewportClient::CFrame::CFrame(CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height) :
+CVideoRecorder::CFrame(std::forward<CFrame::Opaque>(opaque)),
 stagingTexture(texturePool.GetTexture(device, format, width, height)),
 frameData()
 {
@@ -415,7 +393,6 @@ namespace
 #else
 class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
-	UVideoRecordGameViewportClient &parent;
 	TArray<FColor> frame;
 	FIntPoint frameSize;
 
@@ -423,18 +400,15 @@ private:
 	FrameData GetFrameData() const override;
 
 public:
-	CFrame(CVideoRecorder::CFrame::Opaque opaque, UVideoRecordGameViewportClient &parent);
+	CFrame(CFrame::Opaque opaque, FViewport *viewport);
 };
 
-UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, UVideoRecordGameViewportClient &parent) :
-CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::Opaque>(opaque)),
-parent(parent), frameSize(parent.Viewport->GetSizeXY())
+UVideoRecordGameViewportClient::CFrame::CFrame(CFrame::Opaque opaque, FViewport *viewport) :
+CVideoRecorder::CFrame(std::forward<CFrame::Opaque>(opaque)),
+frameSize(viewport->GetSizeXY())
 {
-	if (!parent.TryCaptureGUI(frame, frameSize))
-	{
-		const auto ok = parent.Viewport->ReadPixels(frame, FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
-		assert(ok);
-	}
+	const auto ok = viewport->ReadPixels(frame, FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
+	assert(ok);
 }
 
 auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
@@ -446,20 +420,15 @@ auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
 
 void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)
 {
-	Super::Draw(viewport, sceneCanvas);
+	if (!captureGUI)
+		Super::Draw(viewport, sceneCanvas);
 
 #if LEGACY
 	FIntPoint frameSize = Viewport->GetSizeXY();
-	const bool captureGUI = TryCaptureGUI(frame, frameSize);
 	Draw(frameSize.X, frameSize.Y, [=](std::decay_t<FunctionTraits<decltype(&CVideoRecorder::Draw)>::arg<3>>::argument_type data)
 	{
-		if (captureGUI)
-			memcpy(data, frame.GetData(), frame.Num() * frame.GetTypeSize());
-		else
-		{
-			const auto ok = Viewport->ReadPixelsPtr(reinterpret_cast<FColor *>(data), FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
-			assert(ok);
-		}
+		const auto ok = Viewport->ReadPixelsPtr(reinterpret_cast<FColor *>(data), FReadSurfaceDataFlags(), FIntRect(0, 0, frameSize.X, frameSize.Y));
+		assert(ok);
 	});
 #else
 #ifdef GAME
@@ -482,13 +451,10 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 					viewportClient.frameQueue.pop_front();
 				}
 
-				viewportClient.SampleFrame([this](CVideoRecorder::CFrame::Opaque opaque)
+				viewportClient.SampleFrame([this](CFrame::Opaque opaque)
 				{
 					//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
 					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetViewportRHI() ? viewportClient.Viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
-					//IDXGISwapChain *swapChain = reinterpret_cast<IDXGISwapChain *>(viewportClient.Viewport->GetViewportRHI()->GetNativeSwapChain());
-					//ComPtr<ID3D11Texture2D> rt;
-					//CheckHR(swapChain->GetBuffer(0, __uuidof(rt.Get()), &rt));
 					assert(rt);
 
 					ComPtr<ID3D11Device> device;
@@ -500,8 +466,8 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 					D3D11_TEXTURE2D_DESC desc;
 					rt->GetDesc(&desc);
 
-					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
-					*viewportClient.frameQueue.back() = rt/*.Get()*/;
+					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CFrame::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
+					*viewportClient.frameQueue.back() = rt;
 
 					return viewportClient.frameQueue.back();
 				});
@@ -520,14 +486,17 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 			}
 		});
 #else
-	SampleFrame([this](CVideoRecorder::CFrame::Opaque opaque)
+	SampleFrame([this](CFrame::Opaque opaque)
 	{
-		auto frame = std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), *this);
+		auto frame = std::make_shared<CFrame>(std::forward<CFrame::Opaque>(opaque), Viewport);
 		frame->Ready();
 		return frame;
 	});
 #endif
 #endif
+
+	if (captureGUI)
+		Super::Draw(viewport, sceneCanvas);
 }
 
 // 1 call site
