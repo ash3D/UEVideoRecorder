@@ -186,8 +186,6 @@ static inline bool Unused(IUnknown *object)
 
 namespace
 {
-	const/*expr*/ auto textureFormat = DXGI_FORMAT_B8G8R8A8_TYPELESS;
-
 	inline void AssertHR(HRESULT hr)
 	{
 		assert(SUCCEEDED(hr));
@@ -220,7 +218,7 @@ namespace
 		static inline bool Unused(decltype(pool)::const_reference texture);
 
 	public:
-		ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, unsigned int width, unsigned int height);
+		ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
 		void NextFrame();
 	} texturePool;
 
@@ -230,11 +228,20 @@ namespace
 		return ::Unused(texture.texture.Get());
 	}
 
-#define SEARCH_SMALLEST 1
-	ComPtr<ID3D11Texture2D> CTexturePool::GetTexture(ID3D11Device *device, unsigned int width, unsigned int height)
+#define SEARCH_SMALLEST 0
+	ComPtr<ID3D11Texture2D> CTexturePool::GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height)
 	{
+		const auto IsAcceptable = [format](decltype(pool)::const_reference texture)
+		{
+			return Unused(texture) && [&texture, format]
+			{
+				D3D11_TEXTURE2D_DESC desc;
+				texture.texture->GetDesc(&desc);
+				return desc.Format == format;
+			}();
+		};
 #if SEARCH_SMALLEST
-		const auto cached = std::min_element(pool.begin(), pool.end(), [](decltype(pool)::const_reference left, decltype(pool)::const_reference right)
+		const auto cached = std::min_element(pool.begin(), pool.end(), [format](decltype(pool)::const_reference left, decltype(pool)::const_reference right)
 		{
 			const bool leftUnused = Unused(left), rightUnused = Unused(right);
 			if (leftUnused != rightUnused)
@@ -243,14 +250,16 @@ namespace
 			D3D11_TEXTURE2D_DESC leftDesc, rightDesc;
 			left.texture->GetDesc(&leftDesc);
 			right.texture->GetDesc(&rightDesc);
+			if (leftDesc.Format != rightDesc.Format)
+				return leftDesc.Format == format;
 			return leftDesc.Width * leftDesc.Height < rightDesc.Width * rightDesc.Height;
 		});
 #else
-		const auto cached = std::find_if(pool.begin(), pool.end(), Unused);
+		const auto cached = std::find_if(pool.begin(), pool.end(), IsAcceptable);
 #endif
 
 #if SEARCH_SMALLEST
-		if (cached != pool.end() && Unused(*cached))
+		if (cached != pool.end() && IsAcceptable(*cached))
 #else
 		if (cached != pool.end())
 #endif
@@ -260,7 +269,7 @@ namespace
 		}
 
 		ComPtr<ID3D11Texture2D> texture;
-		CheckHR(device->CreateTexture2D(&CD3D11_TEXTURE2D_DESC(textureFormat, width, height, 1, 0, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ), NULL, &texture));
+		CheckHR(device->CreateTexture2D(&CD3D11_TEXTURE2D_DESC(format, width, height, 1, 0, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ), NULL, &texture));
 		pool.emplace_front(std::move(texture));
 		return pool.front().texture;
 	}
@@ -279,16 +288,16 @@ namespace
 class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
 	ComPtr<ID3D11Texture2D> stagingTexture;
-	TFrameData frameData;
+	FrameData frameData;
 
 private:
-	TFrameData GetFrameData() const override { return frameData; }
+	FrameData GetFrameData() const override { return frameData; }
 
 private:
 	ComPtr<ID3D11DeviceContext> GetContext() const;
 
 public:
-	CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, unsigned int width, unsigned int height);
+	CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
 	~CFrame() override;
 
 public:
@@ -305,11 +314,29 @@ ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame::GetContext()
 	return context;
 }
 
-UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, unsigned int width, unsigned int height) :
+UVideoRecordGameViewportClient::CFrame::CFrame(CVideoRecorder::CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height) :
 CVideoRecorder::CFrame(std::forward<CVideoRecorder::CFrame::Opaque>(opaque)),
-stagingTexture(texturePool.GetTexture(device, width, height)),
+stagingTexture(texturePool.GetTexture(device, format, width, height)),
 frameData()
 {
+	switch (format)
+	{
+	case DXGI_FORMAT_B8G8R8A8_UNORM:
+	case DXGI_FORMAT_B8G8R8X8_UNORM:
+	case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+	case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+	case DXGI_FORMAT_B8G8R8X8_TYPELESS:
+	case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+		frameData.format = FrameData::Format::B8G8R8A8;
+		break;
+	case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+	case DXGI_FORMAT_R10G10B10A2_UNORM:
+	case DXGI_FORMAT_R10G10B10A2_UINT:
+		frameData.format = FrameData::Format::R10G10B10A2;
+		break;
+	default:
+		throw std::logic_error("invalid texture format");
+	}
 	frameData.width = width;
 	frameData.height = height;
 }
@@ -393,7 +420,7 @@ class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFra
 	FIntPoint frameSize;
 
 private:
-	TFrameData GetFrameData() const override;
+	FrameData GetFrameData() const override;
 
 public:
 	CFrame(CVideoRecorder::CFrame::Opaque opaque, UVideoRecordGameViewportClient &parent);
@@ -410,7 +437,7 @@ parent(parent), frameSize(parent.Viewport->GetSizeXY())
 	}
 }
 
-auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> TFrameData
+auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
 {
 	return{ frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
@@ -435,6 +462,11 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 		}
 	});
 #else
+#ifdef GAME
+#define GET_TEXTURE GetViewportRHI()->GetNativeBackBufferTexture()
+#else
+#define GET_TEXTURE GetRenderTargetTexture()->GetNativeResource()
+#endif
 #if ASYNC
 	ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
 		ProcessVideoRecordingCommand,
@@ -452,7 +484,11 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 
 				viewportClient.SampleFrame([this](CVideoRecorder::CFrame::Opaque opaque)
 				{
-					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
+					//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
+					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetViewportRHI() ? viewportClient.Viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
+					//IDXGISwapChain *swapChain = reinterpret_cast<IDXGISwapChain *>(viewportClient.Viewport->GetViewportRHI()->GetNativeSwapChain());
+					//ComPtr<ID3D11Texture2D> rt;
+					//CheckHR(swapChain->GetBuffer(0, __uuidof(rt.Get()), &rt));
 					assert(rt);
 
 					ComPtr<ID3D11Device> device;
@@ -464,8 +500,8 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 					D3D11_TEXTURE2D_DESC desc;
 					rt->GetDesc(&desc);
 
-					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), device.Get(), desc.Width, desc.Height));
-					*viewportClient.frameQueue.back() = rt;
+					viewportClient.frameQueue.push_back(std::make_shared<CFrame>(std::forward<CVideoRecorder::CFrame::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
+					*viewportClient.frameQueue.back() = rt/*.Get()*/;
 
 					return viewportClient.frameQueue.back();
 				});

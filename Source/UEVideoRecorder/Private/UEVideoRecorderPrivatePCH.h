@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <iostream>
 #include <exception>
+#include <stdexcept>
 #include <locale>
 #include <codecvt>
 #include <cassert>
