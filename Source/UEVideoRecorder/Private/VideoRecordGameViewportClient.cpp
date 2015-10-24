@@ -439,7 +439,7 @@ parent(parent), frameSize(parent.Viewport->GetSizeXY())
 
 auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
 {
-	return{ frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
+	return{ FrameData::Format::B8G8R8A8, frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
 #endif
 #endif
