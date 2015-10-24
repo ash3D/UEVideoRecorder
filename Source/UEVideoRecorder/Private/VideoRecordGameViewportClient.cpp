@@ -206,7 +206,7 @@ namespace
 		return ::Unused(texture.texture.Get());
 	}
 
-#define SEARCH_SMALLEST 0
+#define SEARCH_SMALLEST 1
 	ComPtr<ID3D11Texture2D> CTexturePool::GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height)
 	{
 		const auto IsAcceptable = [format](decltype(pool)::const_reference texture)
