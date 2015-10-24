@@ -11,6 +11,14 @@
 
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
 
+#if ASYNC
+// forward decl
+namespace std
+{
+	class excetption;
+}
+#endif
+
 DECLARE_LOG_CATEGORY_EXTERN(VideoRecorder, Log, All);
 
 namespace bios = boost::iostreams;
@@ -59,19 +67,27 @@ class UVideoRecordGameViewportClient :
 	void Draw(FViewport *viewport, FCanvas *sceneCanvas) override;
 
 public:
+	enum class VideoFormat
+	{
+		AUTO,
+		_8,
+		_10,
+	};
+
+public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
-	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config = { -1 });
+	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config = { -1 });
 #if ASYNC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
 
 private:
-	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, const EncodeConfig &config);
+	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, const EncodeConfig &config);
 
 #if ASYNC
 private:
-	void Error();
+	void Error(), Error(HRESULT hr), Error(const std::exception &error);
 #endif
 
 private:

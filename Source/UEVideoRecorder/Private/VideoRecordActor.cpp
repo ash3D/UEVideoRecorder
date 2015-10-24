@@ -37,9 +37,10 @@ void AVideoRecordActor::CaptureGUI(bool enable)
 	ViewportProxy(&UVideoRecordGameViewportClient::CaptureGUI, enable);
 }
 
-void AVideoRecordActor::StartRecord(const FString &filename, int32 width, int32 height, int32 crf, int32 performance)
+void AVideoRecordActor::StartRecord(const FString &filename, int32 width, int32 height, int32 format, int32 crf, int32 performance)
 {
-	ViewportProxy(&UVideoRecordGameViewportClient::StartRecord, *filename, width, height, CVideoRecorder::EncodeConfig{ crf, CVideoRecorder::EncodeConfig::Performance(performance) });
+	void (UVideoRecordGameViewportClient::*const StartRecord)(std::wstring, unsigned int, unsigned int, UVideoRecordGameViewportClient::VideoFormat, const CVideoRecorder::EncodeConfig &) = &UVideoRecordGameViewportClient::StartRecord;
+	ViewportProxy(StartRecord, *filename, width, height, UVideoRecordGameViewportClient::VideoFormat(format), CVideoRecorder::EncodeConfig{ crf, CVideoRecorder::EncodeConfig::Performance(performance) });
 }
 
 void AVideoRecordActor::StopRecord()

@@ -148,8 +148,9 @@ LogRedirect::~LogRedirect()
 #pragma endregion
 
 #if !LEGACY
-#if ASYNC
+typedef CVideoRecorder::CFrame::FrameData::Format FrameFormat;
 
+#if ASYNC
 using Microsoft::WRL::ComPtr;
 
 /*
@@ -164,6 +165,7 @@ static inline bool Unused(IUnknown *object)
 
 namespace
 {
+#pragma region misc
 	inline void AssertHR(HRESULT hr)
 	{
 		assert(SUCCEEDED(hr));
@@ -175,6 +177,33 @@ namespace
 			throw hr;
 	}
 
+	inline FrameFormat GetFrameFormat(DXGI_FORMAT DXFormat)
+	{
+		switch (DXFormat)
+		{
+		case DXGI_FORMAT_B8G8R8A8_UNORM:
+		case DXGI_FORMAT_B8G8R8X8_UNORM:
+		case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+		case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+		case DXGI_FORMAT_B8G8R8X8_TYPELESS:
+		case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+			return FrameFormat::B8G8R8A8;
+		case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+		case DXGI_FORMAT_R10G10B10A2_UNORM:
+		case DXGI_FORMAT_R10G10B10A2_UINT:
+			return FrameFormat::R10G10B10A2;
+		default:
+			throw std::logic_error("invalid texture format");
+		}
+	}
+
+	inline ID3D11Texture2D *GetRendertargetTexture(FViewport *viewport)
+	{
+		return reinterpret_cast<ID3D11Texture2D *>(viewport->GetViewportRHI() ? viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewport->GetRenderTargetTexture()->GetNativeResource());
+	}
+#pragma endregion
+
+#pragma region texture pool
 	/*
 		Texture pool currently global for all game viewport clients.
 		It is necessary to make sure that it is safe to use multiple game viewport clients with single pool (including thread safaty) before doing it.
@@ -260,6 +289,7 @@ namespace
 			return Unused(texture) && ++texture.idleTime > maxIdle;
 		});
 	}
+#pragma endregion
 }
 
 #pragma region CFrame
@@ -297,24 +327,7 @@ CVideoRecorder::CFrame(std::forward<CFrame::Opaque>(opaque)),
 stagingTexture(texturePool.GetTexture(device, format, width, height)),
 frameData()
 {
-	switch (format)
-	{
-	case DXGI_FORMAT_B8G8R8A8_UNORM:
-	case DXGI_FORMAT_B8G8R8X8_UNORM:
-	case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-	case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
-	case DXGI_FORMAT_B8G8R8X8_TYPELESS:
-	case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
-		frameData.format = FrameData::Format::B8G8R8A8;
-		break;
-	case DXGI_FORMAT_R10G10B10A2_TYPELESS:
-	case DXGI_FORMAT_R10G10B10A2_UNORM:
-	case DXGI_FORMAT_R10G10B10A2_UINT:
-		frameData.format = FrameData::Format::R10G10B10A2;
-		break;
-	default:
-		throw std::logic_error("invalid texture format");
-	}
+	frameData.format = GetFrameFormat(format);
 	frameData.width = width;
 	frameData.height = height;
 }
@@ -361,35 +374,6 @@ bool UVideoRecordGameViewportClient::CFrame::TryMap()
 	}
 }
 #pragma endregion
-
-#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
-#define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
-
-namespace
-{
-	template<typename Char = char>
-	inline typename std::enable_if<std::is_same<Char, TCHAR>::value, const Char *>::type Str_char_2_TCHAR(const char *str)
-	{
-		return str;
-	}
-
-	template<typename Char>
-	class c_str
-	{
-		std::basic_string<Char> str;
-
-	public:
-		c_str(decltype(str) &&str) noexcept : str(std::move(str)) {}
-		operator const Char *() const noexcept { return str.c_str(); }
-	};
-
-	template<typename Char = char>
-	typename std::enable_if<!std::is_same<Char, TCHAR>::value, c_str<TCHAR>>::type Str_char_2_TCHAR(const char *str)
-	{
-		std::wstring_convert<std::codecvt_utf8_utf16<TCHAR>> converter;
-		return converter.from_bytes(str);
-	}
-}
 #else
 class UVideoRecordGameViewportClient::CFrame final : public CVideoRecorder::CFrame
 {
@@ -413,7 +397,7 @@ frameSize(viewport->GetSizeXY())
 
 auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
 {
-	return{ FrameData::Format::B8G8R8A8, frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
+	return{ FrameFormat::B8G8R8A8, frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
 #endif
 #endif
@@ -454,7 +438,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 				viewportClient.SampleFrame([this](CFrame::Opaque opaque)
 				{
 					//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
-					ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GetViewportRHI() ? viewportClient.Viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewportClient.Viewport->GetRenderTargetTexture()->GetNativeResource());
+					ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
 					assert(rt);
 
 					ComPtr<ID3D11Device> device;
@@ -476,13 +460,11 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 			}
 			catch (HRESULT hr)
 			{
-				UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("hr=%d") ERROR_MSG_POSTFIX, hr);
-				viewportClient.Error();
+				viewportClient.Error(hr);
 			}
 			catch (const std::exception &error)
 			{
-				UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("%s") ERROR_MSG_POSTFIX, (const TCHAR *)Str_char_2_TCHAR(error.what()));
-				viewportClient.Error();
+				viewportClient.Error(error);
 			}
 		});
 #else
@@ -500,28 +482,85 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 }
 
 // 1 call site
-inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, const EncodeConfig &config)
+inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, const EncodeConfig &config)
 {
 	if (!(width && height))
 	{
 		width = Viewport->GetSizeXY().X;
 		height = Viewport->GetSizeXY().Y;
 	}
-	CVideoRecorder::StartRecord(std::move(filename), width, height, config);
+	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, config);
 }
 
 #if ASYNC
-void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config)
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_FIVEPARAMETER(
+	ENQUEUE_UNIQUE_RENDER_COMMAND_SIXPARAMETER(
 		StartRecordCommand,
 		UVideoRecordGameViewportClient &, viewportClient, *this,
 		std::wstring, filename, filename,
 		const unsigned int, width, width,
 		const unsigned int, height, height,
+		const VideoFormat, format, format,
 		const EncodeConfig, config, config,
 		{
-			viewportClient.StartRecordImpl(std::move(filename), width, height, config);
+			try
+			{
+				/*
+					workaround for internal compiler error in VS 2013
+					TODO: replace with commented out code below afner migration to VS 2015 (if compiler bug fixed)
+				*/
+				bool _10bit;
+				switch (format)
+				{
+				case VideoFormat::AUTO:
+				{
+					//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
+					ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
+					D3D11_TEXTURE2D_DESC desc;
+					rt->GetDesc(&desc);
+					_10bit = GetFrameFormat(desc.Format) == FrameFormat::R10G10B10A2;
+					break;
+				}
+				case VideoFormat::_8:
+					_10bit = false;
+					break;
+				case VideoFormat::_10:
+					_10bit = true;
+					break;
+				default:
+					assert(false);
+					__assume(false);
+				}
+				/*
+				const bool _10bit = [this]
+				{
+					switch (format)
+					{
+					case VideoFormat::AUTO:
+					{
+						//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
+						ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
+						D3D11_TEXTURE2D_DESC desc;
+						rt->GetDesc(&desc);
+						return GetFrameFormat(desc.Format) == FrameFormat::R10G10B10A2;
+					}
+					case VideoFormat::_8:
+						return false;
+					case VideoFormat::_10:
+						return true;
+					default:
+						assert(false);
+						__assume(false);
+					}
+				}();
+				*/
+				viewportClient.StartRecordImpl(std::move(filename), width, height, _10bit, config);
+			}
+			catch (const std::exception &error)
+			{
+				viewportClient.Error(error);
+			}
 		});
 }
 
@@ -546,17 +585,58 @@ void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 		});
 }
 #else
-void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, const EncodeConfig &config)
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config)
 {
-	StartRecordImpl(std::move(filename), width, height, config);
+	StartRecordImpl(std::move(filename), width, height, format == VideoFormat::_10, config);
 }
 #endif
 
 #if ASYNC
+#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
+#define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
+
+namespace
+{
+	template<typename Char = char>
+	inline typename std::enable_if<std::is_same<Char, TCHAR>::value, const Char *>::type Str_char_2_TCHAR(const char *str)
+	{
+		return str;
+	}
+
+	template<typename Char>
+	class c_str
+	{
+		std::basic_string<Char> str;
+
+	public:
+		c_str(decltype(str) && str) noexcept : str(std::move(str)) {}
+		operator const Char *() const noexcept{ return str.c_str(); }
+	};
+
+	template<typename Char = char>
+	typename std::enable_if<!std::is_same<Char, TCHAR>::value, c_str<TCHAR>>::type Str_char_2_TCHAR(const char *str)
+	{
+		std::wstring_convert<std::codecvt_utf8_utf16<TCHAR>> converter;
+		return converter.from_bytes(str);
+	}
+}
+
 void UVideoRecordGameViewportClient::Error()
 {
 	CVideoRecorder::StopRecord();
 	std::for_each(frameQueue.cbegin(), frameQueue.cend(), std::mem_fn(&CFrame::Cancel));
 	frameQueue.clear();
+}
+
+void UVideoRecordGameViewportClient::Error(HRESULT hr)
+{
+	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("hr=%d") ERROR_MSG_POSTFIX, hr);
+	Error();
+}
+
+void UVideoRecordGameViewportClient::Error(const std::exception &error)
+{
+	UE_LOG(VideoRecorder, Error, ERROR_MSG_PREFIX TEXT("%s") ERROR_MSG_POSTFIX, (const TCHAR *)Str_char_2_TCHAR(error.what()));
+	Error();
 }
 #endif
