@@ -227,6 +227,7 @@ namespace
 	public:
 		ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
 		void NextFrame();
+		void Invalidate() { pool.clear(); }
 	} texturePool;
 
 	// propably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
@@ -400,6 +401,13 @@ auto UVideoRecordGameViewportClient::CFrame::GetFrameData() const -> FrameData
 	return{ FrameFormat::B8G8R8A8, frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
 #endif
+#endif
+
+#if ASYNC
+UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
+{
+	texturePool.Invalidate();
+}
 #endif
 
 void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)

@@ -64,6 +64,10 @@ class UVideoRecordGameViewportClient :
 {
 	GENERATED_BODY()
 
+#if ASYNC
+	~UVideoRecordGameViewportClient();
+#endif
+
 	void Draw(FViewport *viewport, FCanvas *sceneCanvas) override;
 
 public:
