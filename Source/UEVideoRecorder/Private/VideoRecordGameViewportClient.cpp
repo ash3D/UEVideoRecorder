@@ -482,26 +482,28 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 }
 
 // 1 call site
-inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, const EncodeConfig &config)
+inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, const EncodeConfig &config)
 {
 	if (!(width && height))
 	{
 		width = Viewport->GetSizeXY().X;
 		height = Viewport->GetSizeXY().Y;
 	}
-	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, config);
+	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, highFPS, config);
 }
 
 #if ASYNC
-void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config)
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, const EncodeConfig &config)
 {
+	// a maximum of 6 params supported => pack width and height into pair
+	const auto size = std::make_pair(width, height);
 	ENQUEUE_UNIQUE_RENDER_COMMAND_SIXPARAMETER(
 		StartRecordCommand,
 		UVideoRecordGameViewportClient &, viewportClient, *this,
 		std::wstring, filename, filename,
-		const unsigned int, width, width,
-		const unsigned int, height, height,
+		decltype(size), size, size,
 		const VideoFormat, format, format,
+		const bool, highFPS, highFPS,
 		const EncodeConfig, config, config,
 		{
 			try
@@ -555,7 +557,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 					}
 				}();
 				*/
-				viewportClient.StartRecordImpl(std::move(filename), width, height, _10bit, config);
+				viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, _10bit, highFPS, config);
 			}
 			catch (const std::exception &error)
 			{
@@ -585,9 +587,9 @@ void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 		});
 }
 #else
-void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config)
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, const EncodeConfig &config)
 {
-	StartRecordImpl(std::move(filename), width, height, format == VideoFormat::_10, config);
+	StartRecordImpl(std::move(filename), width, height, format == VideoFormat::_10, highFPS, config);
 }
 #endif
 

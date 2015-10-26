@@ -67,7 +67,7 @@ class UVideoRecordGameViewportClient :
 	void Draw(FViewport *viewport, FCanvas *sceneCanvas) override;
 
 public:
-	enum class VideoFormat
+	enum class VideoFormat : uint_least8_t
 	{
 		AUTO,
 		_8,
@@ -76,14 +76,14 @@ public:
 
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
-	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, const EncodeConfig &config = { -1 });
+	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, const EncodeConfig &config = { -1 });
 #if ASYNC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
 
 private:
-	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, const EncodeConfig &config);
+	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, const EncodeConfig &config);
 
 #if ASYNC
 private:
