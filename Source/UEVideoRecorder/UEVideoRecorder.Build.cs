@@ -2,11 +2,14 @@
 
 namespace UnrealBuildTool.Rules
 {
+	using System.IO;
+
 	public class UEVideoRecorder : ModuleRules
 	{
 		public UEVideoRecorder(TargetInfo Target)
 		{
 			bEnableExceptions = true;
+			bUseRTTI = true;
 			UEBuildConfiguration.bUseLoggingInShipping = true;
 
 			switch (Target.Configuration)
@@ -32,8 +35,13 @@ namespace UnrealBuildTool.Rules
 				}
 				);
 
+			string D3D11RHI_Path = Path.Combine(ProjectFileGenerator.EngineRelativePath, "Source/Runtime/Windows/D3D11RHI/Private");
+			D3D11RHI_Path = Path.GetFullPath(D3D11RHI_Path).Replace("\\", "/");
+
 			PrivateIncludePaths.AddRange(
 				new string[] {
+					D3D11RHI_Path,
+					Path.Combine(D3D11RHI_Path, "Windows"),
 					// ... add other private include paths required here ...
 				}
 				);
@@ -54,6 +62,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"CoreUObject",
                     "RenderCore",
+					"D3D11RHI",
 					// ... add private dependencies that you statically link with here ...
 				}
 				);

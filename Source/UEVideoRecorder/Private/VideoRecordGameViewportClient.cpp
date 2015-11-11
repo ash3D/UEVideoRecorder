@@ -414,6 +414,7 @@ UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
 
 void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCanvas)
 {
+	dynamic_cast<FD3D11DynamicRHI *>(GDynamicRHI);
 	if (!captureGUI)
 		Super::Draw(viewport, sceneCanvas);
 
