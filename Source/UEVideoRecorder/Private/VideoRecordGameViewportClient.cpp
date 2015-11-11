@@ -199,7 +199,9 @@ namespace
 
 	inline ID3D11Texture2D *GetRendertargetTexture(FViewport *viewport)
 	{
-		return reinterpret_cast<ID3D11Texture2D *>(viewport->GetViewportRHI() ? viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewport->GetRenderTargetTexture()->GetNativeResource());
+		const auto texture = reinterpret_cast<ID3D11Texture2D *>(viewport->GetViewportRHI() ? viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewport->GetRenderTargetTexture()->GetNativeResource());
+		assert(texture);
+		return texture;
 	}
 #pragma endregion
 
