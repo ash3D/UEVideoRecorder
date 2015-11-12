@@ -2,16 +2,20 @@
 #include "ViewportClientIncludes.h"
 #include "VideoRecordGameViewportClient.generated.h"
 
-#define LEGACY	0
-#define ASYNC	1
+#define LEGACY		0
+#define FORCE_SYNC	0
 
-#if LEGACY && ASYNC
-#error ASYNC incompatible with LEGACY
+#if LEGACY && FORCE_SYNC
+#error FORCE_SYNC incompatible with LEGACY
+#endif
+
+#if !(LEGACY || FORCE_SYNC)
+#define ENABLE_ASINC
 #endif
 
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
 
-#if ASYNC
+#ifdef ENABLE_ASINC
 // forward decl
 namespace std
 {
@@ -64,7 +68,7 @@ class UVideoRecordGameViewportClient :
 {
 	GENERATED_BODY()
 
-#if ASYNC
+#ifdef ENABLE_ASINC
 	~UVideoRecordGameViewportClient();
 #endif
 
@@ -81,7 +85,7 @@ public:
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
 	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, const EncodeConfig &config = { -1 });
-#if ASYNC
+#ifdef ENABLE_ASINC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
@@ -89,7 +93,7 @@ public:
 private:
 	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, const EncodeConfig &config);
 
-#if ASYNC
+#ifdef ENABLE_ASINC
 private:
 	void Error(), Error(HRESULT hr), Error(const std::exception &error);
 #endif
@@ -101,7 +105,7 @@ private:
 	using CVideoRecorder::SampleFrame;
 #endif
 	using CVideoRecorder::StartRecord;
-#if ASYNC
+#ifdef ENABLE_ASINC
 	// make private for ASYNC mode
 	using CVideoRecorder::StopRecord;
 	using CVideoRecorder::Screenshot;
@@ -109,9 +113,12 @@ private:
 
 private:
 #if !LEGACY
+	template<bool async>
 	class CFrame;
-#if ASYNC
-	std::deque<std::shared_ptr<CFrame>> frameQueue;
+#ifdef ENABLE_ASINC
+	std::deque<std::shared_ptr<CFrame<true>>> frameQueue;
+	const bool async = DetectAsyncMode();
+	static bool DetectAsyncMode();
 #endif
 #endif
 	bool captureGUI = false;

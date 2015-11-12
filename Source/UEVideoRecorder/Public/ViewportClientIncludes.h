@@ -1,6 +1,5 @@
 #pragma once
 #include "Engine/GameViewportClient.h"
-#include "D3D11RHIPrivate.h"
 #include "AllowWindowsPlatformTypes.h"
 #include <type_traits>
 #include <memory>
