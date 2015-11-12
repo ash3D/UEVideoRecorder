@@ -1,14 +1,14 @@
 {
 	"FileVersion" : 3,
-	"Version" : 10,
-	"VersionName" : "0.11",
+	"Version" : 11,
+	"VersionName" : "1.0",
 	"FriendlyName" : "Video Recorder",
 	"CreatedBy" : "ash",
 	"CreatedByURL" : "https://github.com/ash3D",
 	"Description" : "Implements gameplay video recording and screenshots.",
 	"Category" : "Media",
 	"EnabledByDefault" : true,
-	"IsBetaVersion" : true,
+	"IsBetaVersion" : false,
 	
 	"Modules" :
 	[
