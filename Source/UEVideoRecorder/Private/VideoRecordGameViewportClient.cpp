@@ -2,7 +2,7 @@
 #include "VideoRecordGameViewportClient.h"
 
 #if defined _MSC_VER && _MSC_VER < 1900
-#define noexcept
+#error old compiler version
 #endif
 
 #pragma region Traits
@@ -13,7 +13,7 @@ template<typename Ret, typename ...Args>
 struct FunctionTraits<Ret(Args...)>
 {
 	typedef Ret ret;
-	static const/*expr*/ auto arity = sizeof...(Args);
+	static constexpr auto arity = sizeof...(Args);
 	template<size_t i>
 	using arg = typename std::tuple_element<i, std::tuple<Args...>>::type;
 };
@@ -39,28 +39,35 @@ DECL_MEMBER_FUNCTION_TRAITS(const volatile)
 
 #define HAS_MEMBER(Class, Member) Has_##Member<Class>::value;
 
-#define DECL_HAS_FUNCTION(Function)													\
-	template<class Class>															\
-	class HasFunction_##Function													\
-	{																				\
-		struct Ambiguator															\
-		{																			\
-			void Function() {}														\
-		};																			\
-																					\
-		struct Derived : Class, Ambiguator {};										\
-																					\
-		template<void (Ambiguator::*)()>											\
-		struct Absorber;															\
-																					\
-		template<class CheckedClass>												\
-		static std::false_type Check(Absorber<&CheckedClass::Function> *);			\
-																					\
-		template<class CheckedClass>												\
-		static std::true_type Check(...);											\
-																					\
-	public:																			\
-		static const/*expr*/ bool value = decltype(Check<Derived>(nullptr))::value;	\
+// workaround for VS 2015 bug
+#if defined _MSC_VER && _MSC_VER == 1900
+#define IS_TRUE(Bool) std::is_same<Bool, std::true_type>
+#else
+#define IS_TRUE(Bool) Bool
+#endif
+
+#define DECL_HAS_FUNCTION(Function)															\
+	template<class Class>																	\
+	class HasFunction_##Function															\
+	{																						\
+		struct Ambiguator																	\
+		{																					\
+			void Function() {}																\
+		};																					\
+																							\
+		struct Derived : Class, Ambiguator {};												\
+																							\
+		template<void (Ambiguator::*)()>													\
+		struct Absorber;																	\
+																							\
+		template<class CheckedClass>														\
+		static std::false_type Check(Absorber<&CheckedClass::Function> *);					\
+																							\
+		template<class CheckedClass>														\
+		static std::true_type Check(...);													\
+																							\
+	public:																					\
+		static constexpr bool value = IS_TRUE(decltype(Check<Derived>(nullptr)))::value;	\
 	};
 
 #define HAS_FUNCTION(Class, Function) HasFunction_##Function<Class>::value
@@ -100,7 +107,15 @@ struct Logger
 	static void Log(...) {}
 };
 
+// yet another workaround for VS 2015 bug
+#if defined _MSC_VER && _MSC_VER == 1900
+#define INST_TEMPLATE(Function) template class HasFunction_##Function<FMsg>;
+#else
+#define INST_TEMPLATE(Function)
+#endif
+
 #define DECL_LOGGER(Logf, condition)																	\
+	INST_TEMPLATE(Logf)																					\
 	template<bool True>																					\
 	struct Logger<True, typename std::enable_if<True && HAS_FUNCTION(FMsg, Logf) && condition>::type>	\
 	{																									\
@@ -153,16 +168,6 @@ typedef CVideoRecorder::CFrame::FrameData::Format FrameFormat;
 #ifdef ENABLE_ASINC
 using Microsoft::WRL::ComPtr;
 
-/*
-	Due to bug in VS 2013 it inaccessible via '::' if place it in anonimous namespace
-	TODO: move it in anonimous namespace after migration to VS 2015
-*/
-static inline bool Unused(IUnknown *object)
-{
-	object->AddRef();
-	return object->Release() == 1;
-}
-
 namespace
 {
 #pragma region misc
@@ -175,6 +180,12 @@ namespace
 	{
 		if (FAILED(hr))
 			throw hr;
+	}
+
+	inline bool Unused(IUnknown *object)
+	{
+		object->AddRef();
+		return object->Release() == 1;
 	}
 
 	inline FrameFormat GetFrameFormat(DXGI_FORMAT DXFormat)
@@ -221,7 +232,7 @@ namespace
 			TTexture(ComPtr<ID3D11Texture2D> &&texture) : texture(std::move(texture)), idleTime() {}
 		};
 		std::forward_list<TTexture> pool;	// consider using std::vector instead
-		static const/*expr*/ unsigned long int maxIdle = 10u;
+		static constexpr unsigned long int maxIdle = 10u;
 
 	private:
 		static inline bool Unused(decltype(pool)::const_reference texture);
@@ -403,7 +414,7 @@ frameSize(viewport->GetSizeXY())
 
 auto UVideoRecordGameViewportClient::CFrame<false>::GetFrameData() const -> FrameData
 {
-	return{ FrameFormat::B8G8R8A8, frameSize.X, frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
+	return{ FrameFormat::B8G8R8A8, (unsigned int)frameSize.X, (unsigned int)frameSize.Y, frameSize.X * sizeof FColor, (const uint8_t *)frame.GetData() };
 }
 #pragma endregion
 #endif
@@ -540,33 +551,6 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 			{
 				try
 				{
-					/*
-						workaround for internal compiler error in VS 2013
-						TODO: replace with commented out code below afner migration to VS 2015 (if compiler bug fixed)
-					*/
-					bool _10bit;
-					switch (format)
-					{
-					case VideoFormat::AUTO:
-					{
-						//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
-						ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
-						D3D11_TEXTURE2D_DESC desc;
-						rt->GetDesc(&desc);
-						_10bit = GetFrameFormat(desc.Format) == FrameFormat::R10G10B10A2;
-						break;
-					}
-					case VideoFormat::_8:
-						_10bit = false;
-						break;
-					case VideoFormat::_10:
-						_10bit = true;
-						break;
-					default:
-						assert(false);
-						__assume(false);
-					}
-					/*
 					const bool _10bit = [this]
 					{
 						switch (format)
@@ -588,7 +572,6 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 							__assume(false);
 						}
 					}();
-					*/
 					viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, _10bit, highFPS, config);
 				}
 				catch (const std::exception &error)
