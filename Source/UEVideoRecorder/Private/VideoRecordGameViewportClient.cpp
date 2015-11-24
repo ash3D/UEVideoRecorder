@@ -327,6 +327,7 @@ public:
 
 public:
 	void operator =(ID3D11Texture2D *src);
+	void Map();
 	bool TryMap();
 };
 
@@ -372,6 +373,14 @@ void UVideoRecordGameViewportClient::CFrame<true>::operator =(ID3D11Texture2D *s
 	src->GetDesc(&desc);
 	const CD3D11_BOX box(0, 0, 0, desc.Width, desc.Height, 1);
 	GetContext()->CopySubresourceRegion(stagingTexture.Get(), 0, 0, 0, 0, src, 0, &box);
+}
+
+void UVideoRecordGameViewportClient::CFrame<true>::Map()
+{
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	CheckHR(GetContext()->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, 0, &mapped));
+	frameData.stride = mapped.RowPitch;
+	frameData.pixels = mapped.pData;
 }
 
 bool UVideoRecordGameViewportClient::CFrame<true>::TryMap()
@@ -436,7 +445,34 @@ bool UVideoRecordGameViewportClient::DetectAsyncMode()
 
 UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
 {
-	texturePool.Invalidate();
+	if (async)
+	{
+		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
+			FlushVideoFramesCommand,
+			UVideoRecordGameViewportClient &, viewportClient, *this,
+			{
+				try
+				{
+					while (!viewportClient.frameQueue.empty())
+					{
+						viewportClient.frameQueue.front()->Map();
+						viewportClient.frameQueue.pop_front();
+					}
+				}
+				catch (HRESULT hr)
+				{
+					viewportClient.Error(hr);
+				}
+				catch (const std::exception &error)
+				{
+					viewportClient.Error(error);
+				}
+			});
+
+		FlushRenderingCommands();
+
+		texturePool.Invalidate();
+	}
 }
 #endif
 
