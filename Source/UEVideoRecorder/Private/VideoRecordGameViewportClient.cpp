@@ -475,28 +475,31 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 						viewportClient.frameQueue.pop_front();
 					}
 
-					viewportClient.SampleFrame([this](CFrame<true>::Opaque opaque)
+					if (viewportClient.Viewport)
 					{
-						//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
-						ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
-						assert(rt);
+						viewportClient.SampleFrame([this](CFrame<true>::Opaque opaque)
+						{
+							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
+							ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
+							assert(rt);
 
-						ComPtr<ID3D11Device> device;
-						rt->GetDevice(&device);
+							ComPtr<ID3D11Device> device;
+							rt->GetDevice(&device);
 
-						ComPtr<ID3D11DeviceContext> context;
-						device->GetImmediateContext(&context);
+							ComPtr<ID3D11DeviceContext> context;
+							device->GetImmediateContext(&context);
 
-						D3D11_TEXTURE2D_DESC desc;
-						rt->GetDesc(&desc);
+							D3D11_TEXTURE2D_DESC desc;
+							rt->GetDesc(&desc);
 
-						viewportClient.frameQueue.push_back(std::make_shared<CFrame<true>>(std::forward<CFrame<true>::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
-						*viewportClient.frameQueue.back() = rt;
+							viewportClient.frameQueue.push_back(std::make_shared<CFrame<true>>(std::forward<CFrame<true>::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
+							*viewportClient.frameQueue.back() = rt;
 
-						return viewportClient.frameQueue.back();
-					});
+							return viewportClient.frameQueue.back();
+						});
 
-					texturePool.NextFrame();
+						texturePool.NextFrame();
+					}
 				}
 				catch (HRESULT hr)
 				{
