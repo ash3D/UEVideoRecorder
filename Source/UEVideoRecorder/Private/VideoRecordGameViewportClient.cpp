@@ -166,11 +166,10 @@ LogRedirect::~LogRedirect()
 typedef CVideoRecorder::CFrame::FrameData::Format FrameFormat;
 
 #ifdef ENABLE_ASINC
-using Microsoft::WRL::ComPtr;
+using WRL::ComPtr;
 
 namespace
 {
-#pragma region misc
 	inline void AssertHR(HRESULT hr)
 	{
 		assert(SUCCEEDED(hr));
@@ -210,101 +209,76 @@ namespace
 
 	inline ID3D11Texture2D *GetRendertargetTexture(FViewport *viewport)
 	{
-		const auto texture = reinterpret_cast<ID3D11Texture2D *>(viewport->GetViewportRHI() ? viewport->GetViewportRHI()->GetNativeBackBufferTexture() : viewport->GetRenderTargetTexture()->GetNativeResource());
+		const auto texture = reinterpret_cast<ID3D11Texture2D *>(viewport->GetViewportRHI()
+			? viewport->GetViewportRHI()->GetNativeBackBufferTexture()
+			: viewport->GetRenderTargetTexture()->GetNativeResource());
 		assert(texture);
 		return texture;
 	}
-#pragma endregion
+}
 
 #pragma region texture pool
-	/*
-		Texture pool currently global for all game viewport clients.
-		It is necessary to make sure that it is safe to use multiple game viewport clients with single pool (including thread safaty) before doing it.
-	*/
-	class CTexturePool
-	{
-		struct TTexture
-		{
-			ComPtr<ID3D11Texture2D> texture;
-			unsigned long int idleTime;
-
-		public:
-			TTexture(ComPtr<ID3D11Texture2D> &&texture) : texture(std::move(texture)), idleTime() {}
-		};
-		std::forward_list<TTexture> pool;	// consider using std::vector instead
-		static constexpr unsigned long int maxIdle = 10u;
-
-	private:
-		static inline bool Unused(decltype(pool)::const_reference texture);
-
-	public:
-		ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
-		void NextFrame();
-		void Invalidate() { pool.clear(); }
-	} texturePool;
-
-	// propably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
-	inline bool CTexturePool::Unused(decltype(pool)::const_reference texture)
-	{
-		return ::Unused(texture.texture.Get());
-	}
+// propably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
+inline bool UVideoRecordGameViewportClient::CTexturePool::Unused(decltype(pool)::const_reference texture)
+{
+	return ::Unused(texture.texture.Get());
+}
 
 #define SEARCH_SMALLEST 1
-	ComPtr<ID3D11Texture2D> CTexturePool::GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height)
+ComPtr<ID3D11Texture2D> UVideoRecordGameViewportClient::CTexturePool::GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height)
+{
+	const auto IsAcceptable = [format](decltype(pool)::const_reference texture)
 	{
-		const auto IsAcceptable = [format](decltype(pool)::const_reference texture)
+		return Unused(texture) && [&texture, format]
 		{
-			return Unused(texture) && [&texture, format]
-			{
-				D3D11_TEXTURE2D_DESC desc;
-				texture.texture->GetDesc(&desc);
-				return desc.Format == format;
-			}();
-		};
+			D3D11_TEXTURE2D_DESC desc;
+			texture.texture->GetDesc(&desc);
+			return desc.Format == format;
+		}();
+	};
 #if SEARCH_SMALLEST
-		const auto cached = std::min_element(pool.begin(), pool.end(), [format](decltype(pool)::const_reference left, decltype(pool)::const_reference right)
-		{
-			const bool leftUnused = Unused(left), rightUnused = Unused(right);
-			if (leftUnused != rightUnused)
-				return leftUnused;
+	const auto cached = std::min_element(pool.begin(), pool.end(), [format](decltype(pool)::const_reference left, decltype(pool)::const_reference right)
+	{
+		const bool leftUnused = Unused(left), rightUnused = Unused(right);
+		if (leftUnused != rightUnused)
+			return leftUnused;
 
-			D3D11_TEXTURE2D_DESC leftDesc, rightDesc;
-			left.texture->GetDesc(&leftDesc);
-			right.texture->GetDesc(&rightDesc);
-			if (leftDesc.Format != rightDesc.Format)
-				return leftDesc.Format == format;
-			return leftDesc.Width * leftDesc.Height < rightDesc.Width * rightDesc.Height;
-		});
+		D3D11_TEXTURE2D_DESC leftDesc, rightDesc;
+		left.texture->GetDesc(&leftDesc);
+		right.texture->GetDesc(&rightDesc);
+		if (leftDesc.Format != rightDesc.Format)
+			return leftDesc.Format == format;
+		return leftDesc.Width * leftDesc.Height < rightDesc.Width * rightDesc.Height;
+	});
 #else
-		const auto cached = std::find_if(pool.begin(), pool.end(), IsAcceptable);
+	const auto cached = std::find_if(pool.begin(), pool.end(), IsAcceptable);
 #endif
 
 #if SEARCH_SMALLEST
-		if (cached != pool.end() && IsAcceptable(*cached))
+	if (cached != pool.end() && IsAcceptable(*cached))
 #else
-		if (cached != pool.end())
+	if (cached != pool.end())
 #endif
-		{
-			cached->idleTime = 0;
-			return cached->texture;
-		}
-
-		ComPtr<ID3D11Texture2D> texture;
-		CheckHR(device->CreateTexture2D(&CD3D11_TEXTURE2D_DESC(format, width, height, 1, 0, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ), NULL, &texture));
-		pool.emplace_front(std::move(texture));
-		return pool.front().texture;
+	{
+		cached->idleTime = 0;
+		return cached->texture;
 	}
+
+	ComPtr<ID3D11Texture2D> texture;
+	CheckHR(device->CreateTexture2D(&CD3D11_TEXTURE2D_DESC(format, width, height, 1, 0, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ), NULL, &texture));
+	pool.emplace_front(std::move(texture));
+	return pool.front().texture;
+}
 #undef SEARCH_SMALLEST
 
-	void CTexturePool::NextFrame()
+void UVideoRecordGameViewportClient::CTexturePool::NextFrame()
+{
+	pool.remove_if([](decltype(pool)::reference texture)
 	{
-		pool.remove_if([](decltype(pool)::reference texture)
-		{
-			return Unused(texture) && ++texture.idleTime > maxIdle;
-		});
-	}
-#pragma endregion
+		return Unused(texture) && ++texture.idleTime > maxIdle;
+	});
 }
+#pragma endregion
 #endif
 
 #pragma region CFrame
@@ -322,7 +296,7 @@ private:
 	ComPtr<ID3D11DeviceContext> GetContext() const;
 
 public:
-	CFrame(CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
+	CFrame(CFrame::Opaque opaque, CTexturePool &texturePool, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
 	~CFrame() override;
 
 public:
@@ -340,7 +314,7 @@ ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame<true>::GetCon
 	return context;
 }
 
-UVideoRecordGameViewportClient::CFrame<true>::CFrame(CFrame::Opaque opaque, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height) :
+UVideoRecordGameViewportClient::CFrame<true>::CFrame(CFrame::Opaque opaque, CTexturePool &texturePool, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height) :
 CVideoRecorder::CFrame(std::forward<CFrame::Opaque>(opaque)),
 stagingTexture(texturePool.GetTexture(device, format, width, height)),
 frameData()
@@ -470,8 +444,6 @@ UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
 			});
 
 		FlushRenderingCommands();
-
-		texturePool.Invalidate();
 	}
 }
 #endif
@@ -528,13 +500,15 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 							D3D11_TEXTURE2D_DESC desc;
 							rt->GetDesc(&desc);
 
-							viewportClient.frameQueue.push_back(std::make_shared<CFrame<true>>(std::forward<CFrame<true>::Opaque>(opaque), device.Get(), desc.Format, desc.Width, desc.Height));
+							viewportClient.frameQueue.push_back(
+								std::make_shared<CFrame<true>>(std::forward<CFrame<true>::Opaque>(opaque),
+								viewportClient.texturePool, device.Get(), desc.Format, desc.Width, desc.Height));
 							*viewportClient.frameQueue.back() = rt;
 
 							return viewportClient.frameQueue.back();
 						});
 
-						texturePool.NextFrame();
+						viewportClient.texturePool.NextFrame();
 					}
 				}
 				catch (HRESULT hr)

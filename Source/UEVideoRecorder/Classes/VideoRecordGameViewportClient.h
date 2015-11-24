@@ -16,6 +16,7 @@
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
 
 #ifdef ENABLE_ASINC
+namespace WRL = Microsoft::WRL;
 // forward decl
 namespace std
 {
@@ -117,6 +118,26 @@ private:
 	class CFrame;
 #ifdef ENABLE_ASINC
 	std::deque<std::shared_ptr<CFrame<true>>> frameQueue;
+	class CTexturePool
+	{
+		struct TTexture
+		{
+			WRL::ComPtr<ID3D11Texture2D> texture;
+			unsigned long int idleTime;
+
+		public:
+			TTexture(WRL::ComPtr<ID3D11Texture2D> &&texture) : texture(std::move(texture)), idleTime() {}
+		};
+		std::forward_list<TTexture> pool;	// consider using std::vector instead
+		static constexpr unsigned long int maxIdle = 10u;
+
+	private:
+		static inline bool Unused(decltype(pool)::const_reference texture);
+
+	public:
+		WRL::ComPtr<ID3D11Texture2D> GetTexture(ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
+		void NextFrame();
+	} texturePool;
 	const bool async = DetectAsyncMode();
 	static bool DetectAsyncMode();
 #endif

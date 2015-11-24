@@ -2,13 +2,16 @@
 #include "Engine/GameViewportClient.h"
 #include "AllowWindowsPlatformTypes.h"
 #include <type_traits>
+#include <utility>
 #include <memory>
 #include <deque>
+#include <forward_list>
 #include <iostream>
 #include <string>
 #include <mutex>
 #include <cstdint>
-#include <winerror.h>	// for HRESULT
+#include <d3d11.h>
+#include <wrl.h>
 #include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream_buffer.hpp"
 #include "VideoRecorder.h"
