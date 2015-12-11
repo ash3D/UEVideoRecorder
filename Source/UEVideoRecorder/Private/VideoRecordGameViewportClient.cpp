@@ -1,7 +1,7 @@
 #include "UEVideoRecorderPrivatePCH.h"
 #include "VideoRecordGameViewportClient.h"
 
-#if defined _MSC_VER && _MSC_VER < 1900
+#if defined _MSC_FULL_VER && _MSC_FULL_VER < 190023506
 #error old compiler version
 #endif
 
@@ -39,35 +39,28 @@ DECL_MEMBER_FUNCTION_TRAITS(const volatile)
 
 #define HAS_MEMBER(Class, Member) Has_##Member<Class>::value;
 
-// workaround for VS 2015 bug
-#if defined _MSC_VER && _MSC_VER == 1900
-#define IS_TRUE(Bool) std::is_same<Bool, std::true_type>
-#else
-#define IS_TRUE(Bool) Bool
-#endif
-
-#define DECL_HAS_FUNCTION(Function)															\
-	template<class Class>																	\
-	class HasFunction_##Function															\
-	{																						\
-		struct Ambiguator																	\
-		{																					\
-			void Function() {}																\
-		};																					\
-																							\
-		struct Derived : Class, Ambiguator {};												\
-																							\
-		template<void (Ambiguator::*)()>													\
-		struct Absorber;																	\
-																							\
-		template<class CheckedClass>														\
-		static std::false_type Check(Absorber<&CheckedClass::Function> *);					\
-																							\
-		template<class CheckedClass>														\
-		static std::true_type Check(...);													\
-																							\
-	public:																					\
-		static constexpr bool value = IS_TRUE(decltype(Check<Derived>(nullptr)))::value;	\
+#define DECL_HAS_FUNCTION(Function)												\
+	template<class Class>														\
+	class HasFunction_##Function												\
+	{																			\
+		struct Ambiguator														\
+		{																		\
+			void Function() {}													\
+		};																		\
+																				\
+		struct Derived : Class, Ambiguator {};									\
+																				\
+		template<void (Ambiguator::*)()>										\
+		struct Absorber;														\
+																				\
+		template<class CheckedClass>											\
+		static std::false_type Check(Absorber<&CheckedClass::Function> *);		\
+																				\
+		template<class CheckedClass>											\
+		static std::true_type Check(...);										\
+																				\
+	public:																		\
+		static constexpr bool value = decltype(Check<Derived>(nullptr))::value;	\
 	};
 
 #define HAS_FUNCTION(Class, Function) HasFunction_##Function<Class>::value
@@ -107,8 +100,8 @@ struct Logger
 	static void Log(...) {}
 };
 
-// yet another workaround for VS 2015 bug
-#if defined _MSC_VER && _MSC_VER == 1900
+// workaround for VS 2015 bug
+#if defined _MSC_FULL_VER && _MSC_FULL_VER == 190023506
 #define INST_TEMPLATE(Function) template class HasFunction_##Function<FMsg>;
 #else
 #define INST_TEMPLATE(Function)
