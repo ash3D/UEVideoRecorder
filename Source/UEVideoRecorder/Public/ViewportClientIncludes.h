@@ -11,7 +11,7 @@
 #include <mutex>
 #include <cstdint>
 #include <d3d11.h>
-#include <wrl.h>
+#include <wrl/client.h>
 #include "boost/iostreams/concepts.hpp"
 #include "boost/iostreams/stream_buffer.hpp"
 #include "VideoRecorder.h"
