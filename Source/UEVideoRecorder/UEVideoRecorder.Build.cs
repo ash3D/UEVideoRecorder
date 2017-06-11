@@ -6,9 +6,9 @@ namespace UnrealBuildTool.Rules
 
 	public class UEVideoRecorder : ModuleRules
 	{
-        public UEVideoRecorder(TargetInfo Target)
-        {
-            bEnableExceptions = true;
+		public UEVideoRecorder(ReadOnlyTargetRules Target) : base(Target)
+		{
+			bEnableExceptions = true;
 			//UEBuildConfiguration.bUseLoggingInShipping = true;
 
 			switch (Target.Configuration)
