@@ -294,8 +294,7 @@ public:
 
 public:
 	void operator =(ID3D11Texture2D *src);
-	void Map();
-	bool TryMap();
+	bool TrySubmit(UINT waitFlags);
 };
 
 ComPtr<ID3D11DeviceContext> UVideoRecordGameViewportClient::CFrame<true>::GetContext() const
@@ -342,18 +341,10 @@ void UVideoRecordGameViewportClient::CFrame<true>::operator =(ID3D11Texture2D *s
 	GetContext()->CopySubresourceRegion(stagingTexture.Get(), 0, 0, 0, 0, src, 0, &box);
 }
 
-void UVideoRecordGameViewportClient::CFrame<true>::Map()
+bool UVideoRecordGameViewportClient::CFrame<true>::TrySubmit(UINT waitFlags)
 {
 	D3D11_MAPPED_SUBRESOURCE mapped;
-	CheckHR(GetContext()->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, 0, &mapped));
-	frameData.stride = mapped.RowPitch;
-	frameData.pixels = mapped.pData;
-}
-
-bool UVideoRecordGameViewportClient::CFrame<true>::TryMap()
-{
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	switch (const HRESULT hr = GetContext()->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped))
+	switch (const HRESULT hr = GetContext()->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, waitFlags, &mapped))
 	{
 	case S_OK:
 		frameData.stride = mapped.RowPitch;
@@ -422,7 +413,7 @@ UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
 				{
 					while (!viewportClient.frameQueue.empty())
 					{
-						viewportClient.frameQueue.front()->Map();
+						viewportClient.frameQueue.front()->TrySubmit(0);
 						viewportClient.frameQueue.pop_front();
 					}
 				}
@@ -468,10 +459,10 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 			{
 				try
 				{
-					// try to map ready frames
+					// try to submit ready frames
 					while (!viewportClient.frameQueue.empty())
 					{
-						if (!viewportClient.frameQueue.front()->TryMap())
+						if (!viewportClient.frameQueue.front()->TrySubmit(D3D11_MAP_FLAG_DO_NOT_WAIT))
 							break;
 						viewportClient.frameQueue.pop_front();
 					}
