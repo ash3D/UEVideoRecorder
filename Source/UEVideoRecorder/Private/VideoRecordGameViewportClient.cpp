@@ -522,11 +522,10 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 // 1 call site
 inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, int64_t crf, Performance performance)
 {
-	if (!(width && height))
-	{
+	if (!width)
 		width = Viewport->GetSizeXY().X;
+	if (!height)
 		height = Viewport->GetSizeXY().Y;
-	}
 	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, highFPS, crf, performance);
 }
 
