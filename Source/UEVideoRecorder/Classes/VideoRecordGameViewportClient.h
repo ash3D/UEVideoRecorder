@@ -85,14 +85,14 @@ public:
 
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
-	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, const EncodeConfig &config = { -1 });
+	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, int64_t crf = -1, Performance performance = Performance::Default);
 #ifdef ENABLE_ASINC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
 
 private:
-	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, const EncodeConfig &config);
+	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, int64_t crf, Performance performance);
 
 #ifdef ENABLE_ASINC
 private:
