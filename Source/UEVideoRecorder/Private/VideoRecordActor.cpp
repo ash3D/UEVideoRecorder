@@ -6,7 +6,7 @@
 // Sets default values
 AVideoRecordActor::AVideoRecordActor()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+ 	// Set this actor to call Tick() every frame.  You can turn this off to improve preset if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
 
 }
@@ -37,10 +37,10 @@ void AVideoRecordActor::CaptureGUI(bool enable)
 	ViewportProxy(&UVideoRecordGameViewportClient::CaptureGUI, enable);
 }
 
-void AVideoRecordActor::StartRecord(const FString &filename, int32 width, int32 height, int32 format, bool highFPS, int32 crf, int32 performance)
+void AVideoRecordActor::StartRecord(const FString &filename, int32 width, int32 height, int32 format, bool highFPS, int32 crf, int32 preset)
 {
-	void (UVideoRecordGameViewportClient::*const StartRecord)(std::wstring, unsigned int, unsigned int, UVideoRecordGameViewportClient::VideoFormat, bool, int64_t, CVideoRecorder::Performance) = &UVideoRecordGameViewportClient::StartRecord;
-	ViewportProxy(StartRecord, *filename, width, height, UVideoRecordGameViewportClient::VideoFormat(format), highFPS, crf, CVideoRecorder::Performance(performance));
+	void (UVideoRecordGameViewportClient::*const StartRecord)(std::wstring, unsigned int, unsigned int, UVideoRecordGameViewportClient::VideoFormat, bool, int64_t, CVideoRecorder::Preset) = &UVideoRecordGameViewportClient::StartRecord;
+	ViewportProxy(StartRecord, *filename, width, height, UVideoRecordGameViewportClient::VideoFormat(format), highFPS, crf, CVideoRecorder::Preset(preset));
 }
 
 void AVideoRecordActor::StopRecord()

@@ -33,7 +33,7 @@ public:
 		int32 format,
 		UPARAM(DisplayName = "highFPS (30/60)") bool highFPS,
 		UPARAM(DisplayName = "crf (-1 - default)") int32 crf = -1,
-//		UPARAM(DisplayName = R"(performance
+//		UPARAM(DisplayName = R"(preset
 //-1 - default
 // 0 - placebo
 // 1 - veryslow
@@ -45,8 +45,8 @@ public:
 // 7 - veryfast
 // 8 - superfast
 // 9 - ultrafast)")
-		UPARAM(DisplayName = "performance\n-1 - default\n 0 - placebo\n 1 - veryslow\n 2 - slower\n 3 - slow\n 4 - medium\n 5 - fast\n 6 - faster\n 7 - veryfast\n 8 - superfast\n 9 - ultrafast")
-		int32 performance = -1);
+		UPARAM(DisplayName = "preset\n-1 - default\n 0 - placebo\n 1 - veryslow\n 2 - slower\n 3 - slow\n 4 - medium\n 5 - fast\n 6 - faster\n 7 - veryfast\n 8 - superfast\n 9 - ultrafast")
+		int32 preset = -1);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StopRecord();

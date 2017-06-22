@@ -527,23 +527,23 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 }
 
 // 1 call site
-inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, int64_t crf, Performance performance)
+inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, bool _10bit, bool highFPS, int64_t crf, Preset preset)
 {
 	if (!width)
 		width = Viewport->GetSizeXY().X;
 	if (!height)
 		height = Viewport->GetSizeXY().Y;
-	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, highFPS, crf, performance);
+	CVideoRecorder::StartRecord(std::move(filename), width, height, _10bit, highFPS, crf, preset);
 }
 
-void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, int64_t crf, Performance performance)
+void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, int64_t crf, Preset preset)
 {
 #ifdef ENABLE_ASINC
 	if (async)
 	{
-		// a maximum of 6 params supported => pack width/height and crf/performance into pairs
+		// a maximum of 6 params supported => pack width/height and crf/preset into pairs
 		const auto size = std::make_pair(width, height);
-		const auto config = std::make_pair(crf, performance);
+		const auto config = std::make_pair(crf, preset);
 		ENQUEUE_UNIQUE_RENDER_COMMAND_SIXPARAMETER(
 			StartRecordCommand,
 			UVideoRecordGameViewportClient &, viewportClient, *this,
@@ -586,7 +586,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 	}
 	else
 #endif
-	StartRecordImpl(std::move(filename), width, height, format == VideoFormat::_10, highFPS, crf, performance);
+	StartRecordImpl(std::move(filename), width, height, format == VideoFormat::_10, highFPS, crf, preset);
 }
 
 #ifdef ENABLE_ASINC
