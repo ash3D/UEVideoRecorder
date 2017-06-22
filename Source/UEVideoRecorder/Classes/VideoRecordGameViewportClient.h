@@ -69,6 +69,8 @@ class UVideoRecordGameViewportClient :
 {
 	GENERATED_BODY()
 
+	UVideoRecordGameViewportClient();
+
 #ifdef ENABLE_ASINC
 	~UVideoRecordGameViewportClient();
 #endif

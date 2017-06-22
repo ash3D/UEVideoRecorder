@@ -386,6 +386,13 @@ auto UVideoRecordGameViewportClient::CFrame<false>::GetFrameData() const -> Fram
 #pragma endregion
 #endif
 
+UVideoRecordGameViewportClient::UVideoRecordGameViewportClient()
+try {}
+catch (...)
+{
+	UE_LOG(VideoRecorder, Fatal, TEXT("Fail to init game viewport client for video recorder."));
+}
+
 #ifdef ENABLE_ASINC
 bool UVideoRecordGameViewportClient::DetectAsyncMode()
 {
