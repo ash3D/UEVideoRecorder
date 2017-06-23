@@ -24,20 +24,20 @@ public:
 	// it seems that UE4 header generation tool currenly does not support raw string literals, use escape characters for now
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StartRecord(const FString &filename,
-		UPARAM(DisplayName = "width (0 - autodetection)") int32 width, UPARAM(DisplayName = "height (0 - autodetection)") int32 height,
+		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
 //		UPARAM(DisplayName = R"(format
 //0 - autodetection
 //1 - 8 bit
 //2 - 10 bit (if supported))")
 		UPARAM(DisplayName = "format\n0 - autodetection\n1 - 8 bit\n2 - 10 bit (if supported)")
-		int32 format,
+		int format,
 		UPARAM(DisplayName = "highFPS (30/60)") bool highFPS,
 //		UPARAM(DisplayName = R"(codec
 //0 - H264
 //1 - H265/HEVC)")
 		UPARAM(DisplayName = "codec\n0 - H264\n1 - H265/HEVC")
-		int32 codec = 1,
-		UPARAM(DisplayName = "crf (-1 - default)") int32 crf = -1,
+		int codec = 1,
+		UPARAM(DisplayName = "crf (-1 - default)") int crf = -1,// UE4 currently unable to parse default values for int64 => use int for now
 //		UPARAM(DisplayName = R"(preset
 //-1 - default
 // 0 - placebo
@@ -51,7 +51,7 @@ public:
 // 8 - superfast
 // 9 - ultrafast)")
 		UPARAM(DisplayName = "preset\n-1 - default\n 0 - placebo\n 1 - veryslow\n 2 - slower\n 3 - slow\n 4 - medium\n 5 - fast\n 6 - faster\n 7 - veryfast\n 8 - superfast\n 9 - ultrafast")
-		int32 preset = -1);
+		int preset = -1);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StopRecord();
