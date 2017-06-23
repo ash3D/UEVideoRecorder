@@ -538,6 +538,7 @@ inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filen
 
 void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t crf, ::Preset preset)
 {
+	typedef std::make_signed_t<std::underlying_type_t<::Preset>> IntermediateRawPresetType;
 #ifdef ENABLE_ASINC
 	if (async)
 	{
@@ -577,7 +578,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 							__assume(false);
 						}
 					}();
-					viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, format, FPS(formatAndFPS.second), Codec(codec), config.first, Preset((int8_t)config.second));
+					viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, format, FPS(formatAndFPS.second), Codec(codec), config.first, Preset((IntermediateRawPresetType)config.second));
 				}
 				catch (const std::exception &error)
 				{
@@ -587,7 +588,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 	}
 	else
 #endif
-	StartRecordImpl(std::move(filename), width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit, FPS(fps), Codec(codec), crf, Preset((int8_t)preset));
+	StartRecordImpl(std::move(filename), width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit, FPS(fps), Codec(codec), crf, Preset((IntermediateRawPresetType)preset));
 }
 
 #ifdef ENABLE_ASINC
