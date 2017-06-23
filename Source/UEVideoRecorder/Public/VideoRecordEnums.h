@@ -13,14 +13,16 @@ enum class VideoFormat : uint8
 //UENUM(BlueprintType)
 //enum class FPS : uint8
 //{
+//	_25 = 25	UMETA(DisplayName = "25"),
 //	_30 = 30	UMETA(DisplayName = "30"),
 //	_60 = 60	UMETA(DisplayName = "60"),
 //};
 UENUM(BlueprintType)
 enum class FPS : uint8
 {
-	thirty	= 30	UMETA(DisplayName = "30"),
-	sixty	= 60	UMETA(DisplayName = "60"),
+	twenty_five = 25	UMETA(DisplayName = "25"),
+	thirty		= 30	UMETA(DisplayName = "30"),
+	sixty		= 60	UMETA(DisplayName = "60"),
 };
 
 UENUM(BlueprintType)
