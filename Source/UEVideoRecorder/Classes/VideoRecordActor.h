@@ -2,8 +2,6 @@
 #include "GameFramework/Actor.h"
 #include "VideoRecordActor.generated.h"
 
-#define RAW_STRING_LITERALS 1
-
 UCLASS(meta = (ShortTooltip = "This is a proxy that provides interface to video recording and screenshot taking functionality."))
 class AVideoRecordActor : public AActor
 {
