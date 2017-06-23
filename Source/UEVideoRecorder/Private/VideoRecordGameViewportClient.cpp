@@ -577,7 +577,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 							__assume(false);
 						}
 					}();
-					viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, format, FPS(formatAndFPS.second), Codec((int8_t)codec), config.first, Preset(config.second));
+					viewportClient.StartRecordImpl(std::move(filename), size.first, size.second, format, FPS(formatAndFPS.second), Codec(codec), config.first, Preset((int8_t)config.second));
 				}
 				catch (const std::exception &error)
 				{
@@ -587,7 +587,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 	}
 	else
 #endif
-	StartRecordImpl(std::move(filename), width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit, FPS(fps), Codec((int8_t)codec), crf, Preset(preset));
+	StartRecordImpl(std::move(filename), width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit, FPS(fps), Codec(codec), crf, Preset((int8_t)preset));
 }
 
 #ifdef ENABLE_ASINC
