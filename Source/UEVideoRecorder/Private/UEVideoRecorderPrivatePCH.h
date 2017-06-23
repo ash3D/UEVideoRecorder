@@ -1,6 +1,6 @@
 #include "Engine.h"
 
-#pragma warning(default : 4003 4238 4240 4495 4497 4610 4706)
+#pragma warning(default : 4003 4238 4495 4497 4610 4706)
 
 #ifdef DEBUG
 #undef NDEBUG
