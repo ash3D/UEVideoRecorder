@@ -8,6 +8,21 @@ enum class VideoFormat : uint8
 	_10	UMETA(DisplayName = "10 bit (if supported)"),
 };
 
+// UE4 currently unable to parse default values such as FPS::_30 for blueprint callable functions
+
+//UENUM(BlueprintType)
+//enum class FPS : uint8
+//{
+//	_30 = 30	UMETA(DisplayName = "30"),
+//	_60 = 60	UMETA(DisplayName = "60"),
+//};
+UENUM(BlueprintType)
+enum class FPS : uint8
+{
+	thirty	= 30	UMETA(DisplayName = "30"),
+	sixty	= 60	UMETA(DisplayName = "60"),
+};
+
 UENUM(BlueprintType)
 enum class Codec : uint8
 {

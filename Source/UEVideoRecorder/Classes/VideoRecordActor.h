@@ -25,7 +25,7 @@ public:
 	void StartRecord(const FString &filename,
 		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
 		VideoFormat format = VideoFormat::AUTO,
-		UPARAM(DisplayName = "high FPS (30/60)") bool highFPS = false,
+		FPS fps = FPS::thirty,
 		Codec codec = Codec::HEVC,
 		UPARAM(DisplayName = "crf (-1 - default)") int crf = -1,// UE4 currently unable to parse default values for int64 => use int for now
 		Preset preset = Preset::Default);
