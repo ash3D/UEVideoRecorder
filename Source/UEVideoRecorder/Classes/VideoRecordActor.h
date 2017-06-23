@@ -32,6 +32,11 @@ public:
 		UPARAM(DisplayName = "format\n0 - autodetection\n1 - 8 bit\n2 - 10 bit (if supported)")
 		int32 format,
 		UPARAM(DisplayName = "highFPS (30/60)") bool highFPS,
+//		UPARAM(DisplayName = R"(codec
+//0 - H264
+//1 - H265/HEVC)")
+		UPARAM(DisplayName = "codec\n0 - H264\n1 - H265/HEVC")
+		int32 codec = 1,
 		UPARAM(DisplayName = "crf (-1 - default)") int32 crf = -1,
 //		UPARAM(DisplayName = R"(preset
 //-1 - default
