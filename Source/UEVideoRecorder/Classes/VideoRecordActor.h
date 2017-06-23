@@ -1,4 +1,5 @@
 #pragma once
+#include "VideoRecordEnums.h"
 #include "GameFramework/Actor.h"
 #include "VideoRecordActor.generated.h"
 
@@ -23,33 +24,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StartRecord(const FString &filename,
 		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
-//		UPARAM(DisplayName = R"(format
-//0 - autodetection
-//1 - 8 bit
-//2 - 10 bit (if supported))")
-		UPARAM(DisplayName = "format\n0 - autodetection\n1 - 8 bit\n2 - 10 bit (if supported)")
-		int format,
-		UPARAM(DisplayName = "highFPS (30/60)") bool highFPS,
-//		UPARAM(DisplayName = R"(codec
-//0 - H264
-//1 - H265/HEVC)")
-		UPARAM(DisplayName = "codec\n0 - H264\n1 - H265/HEVC")
-		int codec = 1,
+		VideoFormat format = VideoFormat::AUTO,
+		UPARAM(DisplayName = "high FPS (30/60)") bool highFPS = false,
+		Codec codec = Codec::HEVC,
 		UPARAM(DisplayName = "crf (-1 - default)") int crf = -1,// UE4 currently unable to parse default values for int64 => use int for now
-//		UPARAM(DisplayName = R"(preset
-//-1 - default
-// 0 - placebo
-// 1 - veryslow
-// 2 - slower
-// 3 - slow
-// 4 - medium
-// 5 - fast
-// 6 - faster
-// 7 - veryfast
-// 8 - superfast
-// 9 - ultrafast)")
-		UPARAM(DisplayName = "preset\n-1 - default\n 0 - placebo\n 1 - veryslow\n 2 - slower\n 3 - slow\n 4 - medium\n 5 - fast\n 6 - faster\n 7 - veryfast\n 8 - superfast\n 9 - ultrafast")
-		int preset = -1);
+		Preset preset = Preset::Default);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StopRecord();

@@ -1,5 +1,6 @@
 #pragma once
 #include "ViewportClientIncludes.h"
+#include "VideoRecordEnums.h"
 #include "VideoRecordGameViewportClient.generated.h"
 
 #define LEGACY		0
@@ -78,16 +79,8 @@ class UVideoRecordGameViewportClient :
 	void Draw(FViewport *viewport, FCanvas *sceneCanvas) override;
 
 public:
-	enum class VideoFormat : uint_least8_t
-	{
-		AUTO,
-		_8,
-		_10,
-	};
-
-public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
-	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, VideoFormat format, bool highFPS, Codec codec, int64_t crf = -1, Preset preset = Preset::Default);
+	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, bool highFPS, ::Codec codec, int64_t crf = -1, ::Preset preset = ::Preset::Default);
 #ifdef ENABLE_ASINC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
