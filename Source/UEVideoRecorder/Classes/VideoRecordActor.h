@@ -20,7 +20,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void CaptureGUI(bool enable);
 
-	// it seems that UE4 header generation tool currenly does not support raw string literals, use escape characters for now
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StartRecord(const FString &filename,
 		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
