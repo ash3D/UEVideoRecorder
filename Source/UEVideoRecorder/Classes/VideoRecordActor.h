@@ -20,14 +20,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void CaptureGUI(bool enable);
 
+	// UE4 currently unable to parse default values for int64 => use int for now for crf/cq
+
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StartRecord(const FString &filename,
 		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
 		VideoFormat format = VideoFormat::AUTO,
 		FPS fps = FPS::thirty,
 		Codec codec = Codec::HEVC,
-		UPARAM(DisplayName = "crf (-1 - default)") int crf = -1,// UE4 currently unable to parse default values for int64 => use int for now
+		UPARAM(DisplayName = "crf (-1 - default)") int crf = -1,
 		Preset preset = Preset::Default);
+
+	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
+	void StartRecordNV(const FString &filename,
+		UPARAM(DisplayName = "width (0 - autodetection)") int width, UPARAM(DisplayName = "height (0 - autodetection)") int height,
+		VideoFormat format = VideoFormat::AUTO,
+		FPS fps = FPS::thirty,
+		Codec codec = Codec::HEVC,
+		UPARAM(DisplayName = "cq (-1 - default)") int cq = -1,
+		PresetNV preset = PresetNV::Default);
 
 	UFUNCTION(BlueprintCallable, Category = "VideoRecord")
 	void StopRecord();

@@ -81,13 +81,16 @@ class UVideoRecordGameViewportClient :
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
 	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t crf = -1, ::Preset preset = ::Preset::Default);
+	void StartRecordNV(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t cq = -1, ::PresetNV preset = ::PresetNV::Default);
 #ifdef ENABLE_ASYNC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
 
 private:
-	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, Format format, FPS fps, Codec codec, int64_t crf, Preset preset);
+	typedef std::function<void (unsigned int width, unsigned int height, Format format)> CallTarget;
+	void StartRecordImpl(const CallTarget &target, unsigned int width, unsigned int height, Format format);
+	void StartRecordImpl(CallTarget &&target, unsigned int width, unsigned int height, ::VideoFormat format);
 
 #ifdef ENABLE_ASYNC
 private:

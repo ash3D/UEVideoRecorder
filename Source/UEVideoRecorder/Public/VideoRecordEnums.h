@@ -32,8 +32,10 @@ enum class Codec : uint8
 	HEVC,
 };
 
+// UE4 currenly supports only uint8, switch to signed for presets when it will be supported
+
 UENUM(BlueprintType)
-enum class Preset : uint8	// UE4 currenly supports only uint8, switch to signed when it will be supported
+enum class Preset : uint8
 {
 	placebo,
 	veryslow,
@@ -45,5 +47,22 @@ enum class Preset : uint8	// UE4 currenly supports only uint8, switch to signed 
 	veryfast,
 	superfast,
 	ultrafast,
+	Default = 255
+};
+
+UENUM(BlueprintType)
+enum class PresetNV : uint8
+{
+	slow,
+	medium,
+	fast,
+	hp,
+	hq,
+	bd,
+	ll,
+	llhq,
+	llhp,
+	lossless,
+	losslesshp,
 	Default = 255
 };
