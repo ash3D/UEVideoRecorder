@@ -480,7 +480,6 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 						{
 							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
 							ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
-							assert(rt);
 
 							ComPtr<ID3D11Device> device;
 							rt->GetDevice(&device);
