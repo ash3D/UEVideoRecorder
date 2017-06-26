@@ -387,7 +387,13 @@ auto UVideoRecordGameViewportClient::CFrame<false>::GetFrameData() const -> Fram
 #endif
 
 UVideoRecordGameViewportClient::UVideoRecordGameViewportClient()
-try {}
+try
+{
+#ifdef ENABLE_ASYNC
+	if (!async)
+		UE_LOG(VideoRecorder, Warning, TEXT("Async frame capture mode disabled. It can significantly impact rendering performance, especially for complex scenes. Async mode is currenly supported only with D3D11."));
+#endif
+}
 catch (...)
 {
 	UE_LOG(VideoRecorder, Fatal, TEXT("Fail to init game viewport client for video recorder."));
