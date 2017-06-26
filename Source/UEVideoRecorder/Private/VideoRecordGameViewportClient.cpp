@@ -158,7 +158,7 @@ LogRedirect::~LogRedirect()
 #if !LEGACY
 typedef CVideoRecorder::CFrame::FrameData::Format FrameFormat;
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 using WRL::ComPtr;
 
 namespace
@@ -275,7 +275,7 @@ void UVideoRecordGameViewportClient::CTexturePool::NextFrame()
 #endif
 
 #pragma region CFrame
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 template<>
 class UVideoRecordGameViewportClient::CFrame<true> final : public CVideoRecorder::CFrame
 {
@@ -393,7 +393,7 @@ catch (...)
 	UE_LOG(VideoRecorder, Fatal, TEXT("Fail to init game viewport client for video recorder."));
 }
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 bool UVideoRecordGameViewportClient::DetectAsyncMode()
 {
 	switch (GMaxRHIShaderPlatform)
@@ -457,7 +457,7 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 #else
 #define GET_TEXTURE GetRenderTargetTexture()->GetNativeResource()
 #endif
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	if (async)
 	{
 		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
@@ -539,7 +539,7 @@ inline void UVideoRecordGameViewportClient::StartRecordImpl(std::wstring &&filen
 void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t crf, ::Preset preset)
 {
 	typedef std::make_signed_t<std::underlying_type_t<::Preset>> IntermediateRawPresetType;
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	if (async)
 	{
 		// a maximum of 6 params supported => pack width/height, format/FPS and crf/preset into pairs
@@ -591,7 +591,7 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 	StartRecordImpl(std::move(filename), width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit, FPS(fps), Codec(codec), crf, Preset((IntermediateRawPresetType)preset));
 }
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 void UVideoRecordGameViewportClient::StopRecord()
 {
 	if (async)
@@ -624,7 +624,7 @@ void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 }
 #endif
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 #define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
 #define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
 

@@ -11,12 +11,12 @@
 #endif
 
 #if !(LEGACY || FORCE_SYNC)
-#define ENABLE_ASINC
+#define ENABLE_ASYNC
 #endif
 
 static_assert(std::is_same<TCHAR, wchar_t>::value, "Unicode mode must be set.");
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 namespace WRL = Microsoft::WRL;
 // forward decl
 namespace std
@@ -72,7 +72,7 @@ class UVideoRecordGameViewportClient :
 
 	UVideoRecordGameViewportClient();
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	~UVideoRecordGameViewportClient();
 #endif
 
@@ -81,7 +81,7 @@ class UVideoRecordGameViewportClient :
 public:
 	void CaptureGUI(bool enable) { captureGUI = enable; }
 	void StartRecord(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t crf = -1, ::Preset preset = ::Preset::Default);
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	void StopRecord();
 	void Screenshot(std::wstring filename);
 #endif
@@ -89,7 +89,7 @@ public:
 private:
 	inline void StartRecordImpl(std::wstring &&filename, unsigned int width, unsigned int height, Format format, FPS fps, Codec codec, int64_t crf, Preset preset);
 
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 private:
 	void Error(), Error(HRESULT hr), Error(const std::exception &error);
 #endif
@@ -101,7 +101,7 @@ private:
 	using CVideoRecorder::SampleFrame;
 #endif
 	using CVideoRecorder::StartRecord;
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	// make private for ASYNC mode
 	using CVideoRecorder::StopRecord;
 	using CVideoRecorder::Screenshot;
@@ -111,7 +111,7 @@ private:
 #if !LEGACY
 	template<bool async>
 	class CFrame;
-#ifdef ENABLE_ASINC
+#ifdef ENABLE_ASYNC
 	std::deque<std::shared_ptr<CFrame<true>>> frameQueue;
 	class CTexturePool
 	{
