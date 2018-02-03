@@ -127,10 +127,15 @@ DECL_LOGGER(Logf_Internal, !HAS_FUNCTION(FMsg, Logf))
 std::streamsize LogRedirect::LogSink::write(const wchar_t msg[], std::streamsize count)
 {
 	msgStr.assign(msg, count);
-	//UE_LOG(LogTemp, verbosity, msgStr.c_str());
+	//UE_LOG(VideoRecorder, verbosity, msgStr.c_str());
 #if NO_LOGGING
 	if (verbosity == ELogVerbosity::Fatal)
-		FError::LowLevelFatal(__FILE__, __LINE__, msgStr.c_str());
+	{ 
+		LowLevelFatalErrorHandler(__FILE__, __LINE__, msgStr.c_str());
+		_DebugBreakAndPromptForRemote();
+		FDebug::AssertFailed("", __FILE__, __LINE__, msgStr.c_str());
+		UE_LOG_EXPAND_IS_FATAL(Fatal, CA_ASSUME(false);, PREPROCESSOR_NOTHING);
+	}
 #else
 #if 0
 	Log<FMsg::Logf>(verbosity, msgStr.c_str());
