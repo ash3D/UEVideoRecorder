@@ -601,14 +601,14 @@ void UVideoRecordGameViewportClient::StartRecord(std::wstring filename, unsigned
 {
 	using namespace std;
 	using namespace placeholders;
-	StartRecordImpl(move(bind(&CVideoRecorder::StartRecord, this, move(filename), _1, _2, _3, FPS(fps), Codec(codec), crf, Preset((IntermediateRawPresetType)preset))), width, height, format);
+	StartRecordImpl(bind(&CVideoRecorder::StartRecord, this, move(filename), _1, _2, _3, FPS(fps), Codec(codec), crf, Preset((IntermediateRawPresetType)preset)), width, height, format);
 }
 
 void UVideoRecordGameViewportClient::StartRecordNV(std::wstring filename, unsigned int width, unsigned int height, ::VideoFormat format, ::FPS fps, ::Codec codec, int64_t cq, ::PresetNV preset)
 {
 	using namespace std;
 	using namespace placeholders;
-	StartRecordImpl(move(bind(&CVideoRecorder::StartRecordNV, this, move(filename), _1, _2, _3, FPS(fps), Codec(codec), cq, PresetNV((IntermediateRawPresetType)preset))), width, height, format);
+	StartRecordImpl(bind(&CVideoRecorder::StartRecordNV, this, move(filename), _1, _2, _3, FPS(fps), Codec(codec), cq, PresetNV((IntermediateRawPresetType)preset)), width, height, format);
 }
 
 #ifdef ENABLE_ASYNC
