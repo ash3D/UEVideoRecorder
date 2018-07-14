@@ -295,7 +295,7 @@ private:
 
 public:
 	CFrame(CFrame::Opaque opaque, CTexturePool &texturePool, ID3D11Device *device, DXGI_FORMAT format, unsigned int width, unsigned int height);
-	~CFrame() override;
+	~CFrame();
 
 public:
 	void operator =(ID3D11Texture2D *src);
