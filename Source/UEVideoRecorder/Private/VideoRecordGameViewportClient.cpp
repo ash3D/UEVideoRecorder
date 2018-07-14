@@ -201,7 +201,7 @@ namespace
 		case DXGI_FORMAT_R10G10B10A2_UINT:
 			return FrameFormat::R10G10B10A2;
 		default:
-			throw std::logic_error("invalid texture format");
+			throw std::logic_error("unsupported texture format: " + std::to_string(DXFormat));
 		}
 	}
 
