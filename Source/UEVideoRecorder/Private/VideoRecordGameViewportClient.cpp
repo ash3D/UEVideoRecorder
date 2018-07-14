@@ -189,16 +189,13 @@ namespace
 	{
 		switch (DXFormat)
 		{
+		case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+		case DXGI_FORMAT_B8G8R8X8_TYPELESS:
 		case DXGI_FORMAT_B8G8R8A8_UNORM:
 		case DXGI_FORMAT_B8G8R8X8_UNORM:
-		case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-		case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
-		case DXGI_FORMAT_B8G8R8X8_TYPELESS:
-		case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
 			return FrameFormat::B8G8R8A8;
 		case DXGI_FORMAT_R10G10B10A2_TYPELESS:
 		case DXGI_FORMAT_R10G10B10A2_UNORM:
-		case DXGI_FORMAT_R10G10B10A2_UINT:
 			return FrameFormat::R10G10B10A2;
 		default:
 			throw std::logic_error("unsupported texture format: " + std::to_string(DXFormat));
