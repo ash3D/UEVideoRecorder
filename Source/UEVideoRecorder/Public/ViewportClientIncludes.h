@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning(default : 4668)
 #include "Engine/GameViewportClient.h"
 #include "AllowWindowsPlatformTypes.h"
 #include <type_traits>
