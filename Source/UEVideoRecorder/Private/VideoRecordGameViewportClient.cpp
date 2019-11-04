@@ -113,7 +113,7 @@ struct Logger
 	struct Logger<True, typename std::enable_if<True && HAS_FUNCTION(FMsg, Logf) && condition>::type>	\
 	{																									\
 		template<typename ...Args>																		\
-		static auto Log(Args &&...args) -> decltype(FMsg::Logf(std::declval<Args>()...))				\
+		static decltype(auto) Log(Args &&...args)														\
 		{																								\
 			return FMsg::Logf(std::forward<Args>(args)...);												\
 		}																								\
