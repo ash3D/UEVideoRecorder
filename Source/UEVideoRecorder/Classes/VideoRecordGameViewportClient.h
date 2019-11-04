@@ -34,7 +34,6 @@ class LogRedirect
 	class LogSink : public bios::wsink
 	{
 		ELogVerbosity::Type verbosity;
-		std::wstring msgStr;
 
 	public:
 		LogSink(ELogVerbosity::Type verbosity) : verbosity(verbosity) {}

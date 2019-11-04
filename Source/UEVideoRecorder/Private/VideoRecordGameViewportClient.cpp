@@ -126,23 +126,23 @@ DECL_LOGGER(Logf_Internal, !HAS_FUNCTION(FMsg, Logf))
 #pragma region LogRedirect
 std::streamsize LogRedirect::LogSink::write(const wchar_t msg[], std::streamsize count)
 {
-	msgStr.assign(msg, count);
+	static const wchar_t fmt[] = L"%.*ls";
 	//UE_LOG(VideoRecorder, verbosity, msgStr.c_str());
 #if NO_LOGGING
 	if (verbosity == ELogVerbosity::Fatal)
 	{ 
-		LowLevelFatalErrorHandler(__FILE__, __LINE__, msgStr.c_str());
+		LowLevelFatalErrorHandler(__FILE__, __LINE__, fmt, (int)count, msg);
 		_DebugBreakAndPromptForRemote();
-		FDebug::AssertFailed("", __FILE__, __LINE__, msgStr.c_str());
+		FDebug::AssertFailed("", __FILE__, __LINE__, fmt, (int)count, msg);
 		UE_LOG_EXPAND_IS_FATAL(Fatal, CA_ASSUME(false);, PREPROCESSOR_NOTHING);
 	}
 #else
 #if 0
 	Log<FMsg::Logf>(verbosity, msgStr.c_str());
 #elif 0
-	FMsg::Logf(__FILE__, __LINE__, VideoRecorder.GetCategoryName(), verbosity, msgStr.c_str());
+	FMsg::Logf(__FILE__, __LINE__, VideoRecorder.GetCategoryName(), verbosity, msg);
 #else
-	Logger<>::Log(__FILE__, __LINE__, VideoRecorder.GetCategoryName(), verbosity, msgStr.c_str());
+	Logger<>::Log(__FILE__, __LINE__, VideoRecorder.GetCategoryName(), verbosity, fmt, (int)count, msg);
 #endif
 #endif
 	return count;
