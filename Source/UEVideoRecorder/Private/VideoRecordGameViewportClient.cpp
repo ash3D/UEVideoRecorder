@@ -325,9 +325,7 @@ UVideoRecordGameViewportClient::CFrame<true>::~CFrame()
 {
 	if (frameData.pixels)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
-			UnmapCommand,
-			const ComPtr<ID3D11Texture2D>, texture, stagingTexture,
+		ENQUEUE_RENDER_COMMAND(UnmapCommand)([texture = stagingTexture](FRHICommandListImmediate &)
 			{
 				ComPtr<ID3D11Device> device;
 				ComPtr<ID3D11DeviceContext> context;
@@ -410,8 +408,10 @@ bool UVideoRecordGameViewportClient::DetectAsyncMode()
 	switch (GMaxRHIShaderPlatform)
 	{
 	case SP_PCD3D_SM5:
+#if ENGINE_MINOR_VERSION <= 24
 	case SP_PCD3D_SM4:
 	case SP_PCD3D_ES2:
+#endif
 	case SP_PCD3D_ES3_1:
 		return true;
 	default:
@@ -423,25 +423,23 @@ UVideoRecordGameViewportClient::~UVideoRecordGameViewportClient()
 {
 	if (async)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
-			FlushVideoFramesCommand,
-			UVideoRecordGameViewportClient &, viewportClient, *this,
+		ENQUEUE_RENDER_COMMAND(FlushVideoFramesCommand)([this](FRHICommandListImmediate &)
 			{
 				try
 				{
-					while (!viewportClient.frameQueue.empty())
+					while (!frameQueue.empty())
 					{
-						viewportClient.frameQueue.front()->TrySubmit(0);
-						viewportClient.frameQueue.pop_front();
+						frameQueue.front()->TrySubmit(0);
+						frameQueue.pop_front();
 					}
 				}
 				catch (HRESULT hr)
 				{
-					viewportClient.Error(hr);
+					Error(hr);
 				}
 				catch (const std::exception &error)
 				{
-					viewportClient.Error(error);
+					Error(error);
 				}
 			});
 
@@ -471,26 +469,24 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 #ifdef ENABLE_ASYNC
 	if (async)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
-			ProcessVideoRecordingCommand,
-			UVideoRecordGameViewportClient &, viewportClient, *this,
+		ENQUEUE_RENDER_COMMAND(ProcessVideoRecordingCommand)([this](FRHICommandListImmediate &)
 			{
 				try
 				{
 					// try to submit ready frames
-					while (!viewportClient.frameQueue.empty())
+					while (!frameQueue.empty())
 					{
-						if (!viewportClient.frameQueue.front()->TrySubmit(D3D11_MAP_FLAG_DO_NOT_WAIT))
+						if (!frameQueue.front()->TrySubmit(D3D11_MAP_FLAG_DO_NOT_WAIT))
 							break;
-						viewportClient.frameQueue.pop_front();
+						frameQueue.pop_front();
 					}
 
-					if (viewportClient.Viewport)
+					if (Viewport)
 					{
-						viewportClient.SampleFrame([this](CFrame<true>::Opaque opaque)
+						SampleFrame([this](CFrame<true>::Opaque opaque)
 						{
-							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
-							ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
+							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(Viewport->GET_TEXTURE);
+							ID3D11Texture2D *const rt = GetRendertargetTexture(Viewport);
 
 							ComPtr<ID3D11Device> device;
 							rt->GetDevice(&device);
@@ -501,24 +497,24 @@ void UVideoRecordGameViewportClient::Draw(FViewport *viewport, FCanvas *sceneCan
 							D3D11_TEXTURE2D_DESC desc;
 							rt->GetDesc(&desc);
 
-							viewportClient.frameQueue.push_back(
+							frameQueue.push_back(
 								std::make_shared<CFrame<true>>(std::forward<CFrame<true>::Opaque>(opaque),
-								viewportClient.texturePool, device.Get(), desc.Format, desc.Width, desc.Height));
-							*viewportClient.frameQueue.back() = rt;
+								texturePool, device.Get(), desc.Format, desc.Width, desc.Height));
+							*frameQueue.back() = rt;
 
-							return viewportClient.frameQueue.back();
+							return frameQueue.back();
 						});
 
-						viewportClient.texturePool.NextFrame();
+						texturePool.NextFrame();
 					}
 				}
 				catch (HRESULT hr)
 				{
-					viewportClient.Error(hr);
+					Error(hr);
 				}
 				catch (const std::exception &error)
 				{
-					viewportClient.Error(error);
+					Error(error);
 				}
 			});
 	}
@@ -546,29 +542,23 @@ inline void UVideoRecordGameViewportClient::StartRecordImpl(const CallTarget &ta
 	target(width, height, format);
 }
 
-void UVideoRecordGameViewportClient::StartRecordImpl(CallTarget &&target, unsigned int width, unsigned int height, ::VideoFormat format)
+void UVideoRecordGameViewportClient::StartRecordImpl(CallTarget &&target, unsigned int width, unsigned int height, ::VideoFormat videoFormat)
 {
 #ifdef ENABLE_ASYNC
 	if (async)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_FIVEPARAMETER(
-			StartRecordCommand,
-			UVideoRecordGameViewportClient &, viewportClient, *this,
-			CallTarget, target, std::move(target),
-			unsigned int, width, width,
-			unsigned int, height, height,
-			::VideoFormat, videoFormat, format,
+		ENQUEUE_RENDER_COMMAND(StartRecordCommand)([this, target = std::move(target), width, height, videoFormat](FRHICommandListImmediate &)
 			{
 				try
 				{
-					const Format format = [this]
+					const Format format = [this, videoFormat]
 					{
 						switch (videoFormat)
 						{
 						case VideoFormat::AUTO:
 						{
-							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(viewportClient.Viewport->GET_TEXTURE);
-							ID3D11Texture2D *const rt = GetRendertargetTexture(viewportClient.Viewport);
+							//ID3D11Texture2D *const rt = reinterpret_cast<ID3D11Texture2D *>(Viewport->GET_TEXTURE);
+							ID3D11Texture2D *const rt = GetRendertargetTexture(Viewport);
 							D3D11_TEXTURE2D_DESC desc;
 							rt->GetDesc(&desc);
 							return GetFrameFormat(desc.Format) == FrameFormat::R10G10B10A2 ? Format::_10bit : Format::_8bit;
@@ -582,17 +572,17 @@ void UVideoRecordGameViewportClient::StartRecordImpl(CallTarget &&target, unsign
 							__assume(false);
 						}
 					}();
-					viewportClient.StartRecordImpl(target, width, height, format);
+					StartRecordImpl(target, width, height, format);
 				}
 				catch (const std::exception &error)
 				{
-					viewportClient.Error(error);
+					Error(error);
 				}
 			});
 	}
 	else
 #endif
-	StartRecordImpl(target, width, height, format == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit);
+	StartRecordImpl(target, width, height, videoFormat == ::VideoFormat::_10 ? Format::_10bit : Format::_8bit);
 }
 
 typedef std::make_signed_t<std::underlying_type_t<::Preset>> IntermediateRawPresetType;
@@ -616,11 +606,9 @@ void UVideoRecordGameViewportClient::StopRecord()
 {
 	if (async)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_ONEPARAMETER(
-			StopRecordCommand,
-			UVideoRecordGameViewportClient &, viewportClient, *this,
+		ENQUEUE_RENDER_COMMAND(StopRecordCommand)([this](FRHICommandListImmediate &)
 			{
-				viewportClient.CVideoRecorder::StopRecord();
+				CVideoRecorder::StopRecord();
 			});
 	}
 	else
@@ -631,12 +619,9 @@ void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 {
 	if (async)
 	{
-		ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
-			ScreenshotCommand,
-			UVideoRecordGameViewportClient &, viewportClient, *this,
-			std::wstring, filename, filename,
+		ENQUEUE_RENDER_COMMAND(ScreenshotCommand)([this, filename](FRHICommandListImmediate &)
 			{
-				viewportClient.CVideoRecorder::Screenshot(std::move(filename));
+				CVideoRecorder::Screenshot(std::move(filename));
 			});
 	}
 	else

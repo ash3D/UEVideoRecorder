@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 #pragma warning(default : 4003 4238 4495 4497 4610 4706)
 
