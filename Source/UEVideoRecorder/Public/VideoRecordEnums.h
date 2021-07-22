@@ -33,7 +33,7 @@ enum class Codec : uint8
 	HEVC,
 };
 
-// UE4 currenly supports only uint8, switch to signed for presets when it will be supported
+// UE4 currently supports only uint8, switch to signed for presets when it will be supported
 
 UENUM(BlueprintType)
 enum class Preset : uint8

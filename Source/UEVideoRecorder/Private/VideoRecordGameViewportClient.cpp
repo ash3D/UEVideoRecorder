@@ -216,7 +216,7 @@ namespace
 }
 
 #pragma region texture pool
-// propably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
+// probably will not be inlined if pass it to algos, functor/lambda needed in order to it happens
 inline bool UVideoRecordGameViewportClient::CTexturePool::Unused(decltype(pool)::const_reference texture)
 {
 	return ::Unused(texture.texture.Get());
@@ -394,7 +394,7 @@ try
 {
 #ifdef ENABLE_ASYNC
 	if (!async)
-		UE_LOG(VideoRecorder, Warning, TEXT("Async frame capture mode disabled. It can significantly impact rendering performance, especially for complex scenes. Async mode is currenly supported only with D3D11."));
+		UE_LOG(VideoRecorder, Warning, TEXT("Async frame capture mode disabled. It can significantly impact rendering performance, especially for complex scenes. Async mode is currently supported only with D3D11."));
 #endif
 }
 catch (...)
@@ -630,7 +630,7 @@ void UVideoRecordGameViewportClient::Screenshot(std::wstring filename)
 #endif
 
 #ifdef ENABLE_ASYNC
-#define ERROR_MSG_PREFIX TEXT("An Error has occured: ")
+#define ERROR_MSG_PREFIX TEXT("An Error has occurred: ")
 #define ERROR_MSG_POSTFIX TEXT(". Any remaining pending frames being canceled.")
 
 namespace
