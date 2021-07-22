@@ -325,7 +325,7 @@ UVideoRecordGameViewportClient::CFrame<true>::~CFrame()
 {
 	if (frameData.pixels)
 	{
-		ENQUEUE_RENDER_COMMAND(UnmapCommand)([texture = stagingTexture](FRHICommandListImmediate &)
+		ENQUEUE_RENDER_COMMAND(UnmapCommand)([texture = std::move(stagingTexture)](FRHICommandListImmediate &)
 			{
 				ComPtr<ID3D11Device> device;
 				ComPtr<ID3D11DeviceContext> context;
